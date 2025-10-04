@@ -91,7 +91,7 @@ spec:
             storage: 1Gi
 
 ===========================================
-mongodb-config.yaml
+# mongodb-config.yaml
 
 apiVersion: v1
 kind: ConfigMap
