@@ -64,18 +64,18 @@ spec:
             - mongod
             - "--bind_ip_all"
             - --config=/etc/mongo/mongodb.conf
-          volumeMounts:
-            - name: mongo-volume
-              mountPath: /data/db
-            - name: mongodb-config
+          volumeMounts:                  # volumeMounts: define where the container sees the volumes inside its filesystem.
+            - name: mongo-volume         #  mongo-volume → mounted at /data/db → this is where MongoDB stores its data files (the database itself).Typically, this points to a PersistentVolumeClaim (PVC).
+              mountPath: /data/db        # The database files get stored persistently in /data/db, backed by mongo-volume.
+            - name: mongodb-config       # mongodb-config → mounted at /etc/mongo → this is where MongoDB expects its configuration file (mongod.conf).
               mountPath: /etc/mongo
-      volumes:
-        - name: mongodb-config
+      volumes:                           #volumes define what each volume actually is (source).
+        - name: mongodb-config           #The mongodb-config volume is populated from a ConfigMap called mongodb-config
           configMap:
-            name: mongodb-config
+            name: mongodb-config         #Inside that ConfigMap, there’s a key mongodb.conf which is written to the file /etc/mongo/mongodb.conf inside the container
             items:
               - key: mongodb.conf
-                path: mongodb.conf
+                path: mongodb.conf    
   volumeClaimTemplates:
     - metadata:
         name: mongo-volume
