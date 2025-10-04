@@ -1,3 +1,6 @@
+Youtube link -
+
+
 > In the kubernetes architecture chapter of this series we have learned that a pod is restarted automatically if kubernetes finds a pod in an unhealthy state.
 > but how does kubernetes knows if a pod is healthy or not.
 > In this section we will learn how kubernetes identifies whether a pod is working or not and also we will learn how we can customize this Behavior using probes. 
