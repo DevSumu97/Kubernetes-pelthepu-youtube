@@ -1,16 +1,20 @@
-Youtube link -
+Youtube link - https://youtu.be/EF6c7MkOhkw?si=ELIiw21DF8853WAD
 
 
 > In the kubernetes architecture chapter of this series we have learned that a pod is restarted automatically if kubernetes finds a pod in an unhealthy state.
 > but how does kubernetes knows if a pod is healthy or not.
 > In this section we will learn how kubernetes identifies whether a pod is working or not and also we will learn how we can customize this Behavior using probes. 
 
-> Any application can be in an Un-healthy State due to various reasons like bugs in the code, timeouts while communicating with an external service,DB connection failures, out of memory issues ETC 
->In all these situation the Pod will look like it's running from the outside but internal functionality is broken because of these bugs and users won't be able to access the application.
->In all these cases we expect the container to restart but kubernetes doesn't restart because by default kubernetes just checks the containers main process and decides if the container is Healthy or not ..It doesn't check the internal functionality of our application.
+> Any application can be in an Un-healthy State due to various reasons like bugs in the code, timeouts while communicating with an external service,DB connection failures, 
+out of memory issues ETC 
+>In all these situation the Pod will look like it's running from the outside but internal functionality is broken because of these bugs and users won't be able to access the 
+application.
+>In all these cases we expect the container to restart but kubernetes doesn't restart because by default kubernetes just checks the containers main process and decides if the
+container is Healthy or not ..It doesn't check the internal functionality of our application.
 > only if the main process crashes Kubelet will restart the container.
 > If we don't heal these unhealthy pods our service becomes unstable debugging such Pods is also tricky as the Pod status shows running.. but we don't get the expected output.
-> In our mongo-pods we deployed so far mongo-d is the main process . As long as the mongo-d process is running kubernetes just to treats the mongo-pod as healthy no matter if the internal functionality is working correctly or not.
+> In our mongo-pods we deployed so far mongo-d is the main process . As long as the mongo-d process is running kubernetes just to treats the mongo-pod as healthy no matter if 
+the internal functionality is working correctly or not.
 
 > How do we handle this scenario of pods are not working but they are not restarted too?
 > what if there is a way for us to signal to kubernetes that a pod is no longer functioning as per our expectation and let kubernetes restart it.
