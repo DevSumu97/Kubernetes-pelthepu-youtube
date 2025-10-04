@@ -73,9 +73,11 @@ spec:
         - name: mongodb-config           #The mongodb-config volume is populated from a ConfigMap called mongodb-config
           configMap:
             name: mongodb-config         #Inside that ConfigMap, there’s a key mongodb.conf which is written to the file /etc/mongo/mongodb.conf inside the container
-            items:
-              - key: mongodb.conf
-                path: mongodb.conf    
+            items:                       # The items: section lets you control which keys to be mounted from configmap which consists lot of keys, and optionally rename them by using a option "path".
+              - key: mongodb.conf        # key: → which key in the ConfigMap to use
+                path: mongod.conf        # path: → what filename to create inside the volume. If path is not mentioned to rename the file, then the name of the file will be same as key name.
+                 # Because of path the file inside the container will be named as mongod.conf =>  /etc/mongo/mongod.conf.
+                # This is often done because MongoDB expects the file to be named mongod.conf, not mongodb.conf.
   volumeClaimTemplates:
     - metadata:
         name: mongo-volume
@@ -85,3 +87,6 @@ spec:
         resources:
           requests:
             storage: 1Gi
+
+
+            
