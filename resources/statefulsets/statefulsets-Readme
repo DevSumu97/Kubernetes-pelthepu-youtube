@@ -1,0 +1,294 @@
+
+Statefulset 
+=============
+
+> we deployed mongodb with a single replica using deployments but to achieve High availability and enhance overall performance and reliability we should deploy multiple replicas.
+> As mongodb is a stateful application we cannot use a regular deployment resources to deploy multiple replicas, In this chapter we will understand the differences between stateful and stateless applications and how to deploy stateful applications in kubernetes.
+
+# understand the differences between stateful and stateless application :-
+===============================================================================
+> we have a simple spring boot application that does a simple Authentication.
+> so when a client sends a request to login we just set authenticated flag to true in memory.
+> when we send the same request again we just simply read this flag and return... if the user is already logged in or not.
+> so basically we are storing the state of the current request and the next request is dependent on the state of the previous request such types of applications are called stateful applications. As we are storing the state, In this case authentication state.
+
+> But what if you have multiple instances of the same application with a load balancer in front.
+> let's say first request goes to the instance 1 and we set the authenticated Flagship= true.
+> Now if the second request goes to the instance 2 it doesn't give the correct result as we didn't set the flag on instance 2. 
+> so as a best practice, it's recommended to move the "state to a database".
+> so now when the first time the login request is sent we generate a token and save it in the DB and our spring boot application expects this token for subsequent request and validates from the DB .
+> so no matter how many instances we have we will get the same result as we are not storing any state in the spring boot applications.
+> as we are not storing any state in our application our application is called stateless application and database is called stateful application as it is storing the state.
+
+
+# let us see the problems we face if we deploy stateful applications with multiple replicas using regular deployments.
+----------------------------------------------------------------------------------------------------------------------
+
+>  problem -1 :- 
+===============
+>Earlier we deployed a single replica of mongodb using deployment and we used persistent volume to store its data now to achieve high availability we need to increase the number of replicas.
+>  when we use deployments all replicas use same persistent volume.. but in a distributed database if we use the same persistent volume for all the replicas all pods write to the same database which leads to data in-consistency.
+> so the solution to this problem is to have a way to use separate persistent volume for each replica.
+> This can be achieved using stateful sets. In stateful set we Define the "volume claim template" based on this template separate persistent volume claims are used for each pod.. which create separate persistent volumes.
+
+Problem -2 :- 
+============
+> In a typical Master Slave architecture there will be two types of nodes one is master and others are slaves.
+> Master node handles both reads and writes and slave just handles the reads.
+> So for efficient and reliable replication :-  The master should be up and running first and next slave-1 should come up and the data from the master should be copied to the slave-1 next slave-2 should come up and now instead of getting the data from Master again.. this time data should be copied from the Slave-1 so that load on the master will be less after this initial clone all the slaves will continuously syncs the data from masternode. 
+> So to achieve this initial clone pods should come up one by one as the data should be copied from its previous replica.
+
+> But if we use deployment resource to deploy this kind of application all the pods are created parallely.
+> If we deploy the same application with stateful sets... pods are created one by one. 
+Example :- 	
+> let's say we create three replicas first pod -1 will be created then once the Pod 1 is ready second pod is created and once the second pod is ready the third pod is created.
+> If the first pod fails to create for any reason the second pod will not be created also when we delete the stateful set the last pod is deleted first.
+
+problem-3 :-
+===========
+> As we discussed in problem -2 in master slave architecture all the nodes in the cluster should talk to each other for the data replication.
+> For that we need a sticky identity to find eachother in the cluster.. sticky identity means we should be able to access each pod on a DNS and that DNS should not change even if the pod restarts.
+> if it changes when the Pod restarts the other replicas can't find it.
+>To achieve this there must be a way to assign a constant name for all the pods.. meaning even if the Pod restarts it should get the same name, that is why we call this as sticky identity. The name just sticks to the Pod.
+> But if you use regular deployment, The Pod gets some random name every time it is created and If the Pod is restarted for any reason it gets a new name.
+> But when we deploy the same application with a stateful set all pods get a name which can be easily predicted.
+> The naming Convention of the pods will be "stateful set name hyphan ordinal index" (momgo-0, mongo-1) 
+> So, for the first pod will be mongo-0 and for the second pod it will be mongo-1 and for the third pod it will be mongo-2.
+> Now even if the Pod restarts the same name is given to the pod. Not only sticky identity it gets sticky storage also. 
+> Meaning when we use stateful set, each pod gets its own persistent volume and when the Pod is restarted it gets attached to the same persistent volume...for this we don't need to do anything stateful set takes care of it.
+> Finally it's not all about the pods having a fixed name and Storage.
+> we need a service to talk to these pods ...whatever Services we learned so far acts like a load balancers.. meaning if we call the services the request goes to a random pod but here we need to talk to specific pod 
+> like all WRITE should go to the master node and slave-1 should get the data from master and slave-2 should get the data from slave- 1. 
+> so we need a way to directly talk to a pod instead of balancing our load across the pods.
+> For this purpose kubernetes provides a special service called "headless service".. when we specify "cluster IP as none" that service is called headless service.
+> Through this service each pod gets its DNS entry here mongo-0 is the pod name and mongo is the service name default is the namespace name.
+
+DNS entry - mongo-0.mongo.default.svc.cluster.local:27017
+
+> So now when we try to access this DNS the request directly goes to the Mongo-0 pod.
+> headless services are very helpful when you don't want to do any load balancing and want to connect to a single pod directly.
+> Now that we have a very good understanding of what problems stateful set solves. 
+
+Deployment V/s Statefulset 
+==========================
+
+# Deployment
+============
+> deployment is used to deploy stateless applications 
+> all pods are created parallely
+> when we scale down a deployment a random Pods is picked up and deleted.
+> random name is assigned to all the pods
+> Same Persistant volume is user for all the pods 
+> Scaling is easy
+
+# Statefulset
+==============
+> Statefulset is used to deploy stateful applications.
+> pods are created one by one
+> when the scale down a stateful set the last pod is deleted
+> sticky and predictable name is assigned to each pod
+> each pod uses its own persistent volume 
+> Scaling is difficult
+
+
+vi statefulset.yml
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+spec:
+  selector:
+    matchLabels:
+      app: mongo
+  serviceName: "mongo"
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:4.0.8
+          startupProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 2
+          livenessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 2
+          readinessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 2
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  key: username
+                  name: mongodb-config
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: mongodb-secret
+          command:
+            - mongod
+            - "--bind_ip_all"
+            - "--replSet"
+	    - rs0                => Name of the Replicaset of Mongodb
+          command:
+            - mongod
+            - "--bind_ip_all"
+            - --config=/etc/mongo/mongodb.conf
+          volumeMounts:
+            - name: mongo-volume  	=> Name of the volume which we are mounting over the container under the below mentioned path 
+              mountPath: /data/db 	=>Path where the volume is mounted
+            - name: mongodb-config
+              mountPath: /etc/mongo
+      volumes:
+        - name: mongodb-config
+          configMap:
+            name: mongodb-config
+            items:
+              - key: mongodb.conf
+                path: mongodb.conf
+  volumeClaimTemplates:	   => Template for the PVC which will be created for the each pod 
+    - metadata:
+        name: mongo-volume
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: demo-storage  => Storage class which will create the Persistant volume for us 
+        resources:
+          requests:
+            storage: 1Gi	=> Requesting for 1GB storage 
+
+# kubectl apply -f statefulset.yml 
+# kubectl get pods -w ( We can see pods are creating one by one)
+# kubectl scale sts <name of the sts> --replicas=7    Scale-up
+# kubectl scale sts <name of the sts> --replicas=3   Scale-down
+# kubectl delete po mongo-0
+# kubectl get pods -w ( Here you can see that mongo-0 pod is created back, This confirms stickey identity is given to each pod)
+
+Now try to confirm that each pod is using a separate persistent volume.. so let's try to list down the persistent volume claims 
+ # kubectl get pvc
+> As you can see there are six persistent volume claims which are created by "demo Storage-storage class" and the status of all these persistent volume claims are bound to a separate persistent volume.
+> you might be wondering when we have only three pods (mongo-0,mongo-1,mongo-2) why there are 7 persistent volume claims.
+> This is because when we increase  the number of replicas to 7 the seven persistent volumes are created but when we delete the pods persistent volume claims will not  be deleted and also when we restarted the mongo-0 pod the same mongo-0 persistent volume claim will be used by the mongo-0 pod.
+> we can confirm by describing the Pod 
+ # kubectl describe pod mongo-0 | grep volume
+O/p  mongo-volume 
+     claim name   mongo-volume-mongo-0	   => This is what sticky storage 
+
+> To talk to a specific pod we need a headless service
+
+
+# vi headless service.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+spec:
+  ports:
+    - name: mongo
+      port: 27017
+      targetPort: 27017
+  clusterIP: None
+  selector:
+    app: mongo
+
+# kubectl apply -f headless service.yaml
+# kubectl get svc 
+
+NAME    TYPE        CLUSTER_IP  EXTERNAL _IP   PORT         AGE
+mongo  Cluster Ip    None        none          27017/TCP    20s 
+
+> Here cluster IP is none ie, Headless service .
+> please note that headless Services cannot be accessed directly from outside of the cluster.
+
+> Now create the mongodb replica-set 
+> So as we have three pods we should able to specify a specific pod as the master node and the others as the slave nodes.
+> please note that stateful sets just manages your pods it doesn't create the replication for you ,The replication has to be done by ourselves.
+
+login to mongo-0 pod 
+# kubectl exec -it mongo-0 --mongo ( --mongo is the shell of mongodb) 
+
+
+Creating Replica-set for mongo-db
+
+execute the below script in mongo-0 pod  to made mongo-0 as primary and rest of the pods as secondary 
+======================================================================================================
+
+rs.initiate(
+
+   {
+
+    _id: "rs0",     => Name of the replica set mentioned in the statefulset
+    members: [
+        { _id: 0, host: "mongo-0.mongo.default.svc.cluster.local:27017"},  => DNS of the mongo-0 pod => <pod name>.<service name>.<namespace> 
+        { _id: 1, host: "mongo-1.mongo.default.svc.cluster.local:27017"},                                    mongo-0.mongo.default
+        { _id: 2, host: "mongo-2.mongo.default.svc.cluster.local:27017"}
+       ]
+
+     }
+
+)
+
+Replicaset is initiated .....# exit from the pod and login to mongo-0 pod again... #kubectl exec -it mongo-0 --mongo 
+> You can see that node is changed to primary node.
+
+# rs.status()  
+
+Now you cane see 1 primary and 2 secondary nodes
+
+
+>Now let us try to create a simple database with a simple collection in the primary node and verify if the same data is replicated in the slaves.
+
+# use test   
+switched to test db
+
+# db.todos.insert({"titile":"Test"}) => Command to create test collection
+
+# db.todos.find() => command to check the record 
+
+Now login to mongo-1 db pod/ secondary pod to check weather the data is copied or not.
+
+# kubectl exec -it mongo-1 --mongo
+
+# db.todos.find()  => Try to list the collection will get the error 
+
+> To enable read execute the command rs.slaveok()
+
+# db.todos.find()
+
+> As you can see the data is replicated to the slave-1 from the primary node and this data transfer took place with the help of headless service.
+>  so this is how Pods in the stateful state communicate with each other for the data replication.
+
+
+
+
+
