@@ -60,10 +60,10 @@ spec:
                 secretKeyRef:
                   key: password
                   name: mongodb-secret
-          command:
-            - mongod
-            - "--bind_ip_all"
-            - --config=/etc/mongo/mongodb.conf
+          command:                      # The command: field overrides the default ENTRYPOINT from the Docker image.
+            - mongod                    # The main MongoDB server process (daemon).
+            - "--bind_ip_all"           # Tells MongoDB to accept connections from any network interface, not just localhost. This is critical inside Kubernetes, where pods communicate over the cluster network.
+            - --config=/etc/mongo/mongod.conf  # Instructs MongoDB to read settings (like dbPath, replication, etc.) from the given config file — which in your case comes from the ConfigMap mounted at /etc/mongo/mongod.con
           volumeMounts:                  # volumeMounts: define where the container sees the volumes inside its filesystem.
             - name: mongo-volume         #  mongo-volume → mounted at /data/db → this is where MongoDB stores its data files (the database itself).Typically, this points to a PersistentVolumeClaim (PVC).
               mountPath: /data/db        # The database files get stored persistently in /data/db, backed by mongo-volume.
@@ -78,6 +78,8 @@ spec:
                 path: mongod.conf        # path: → what filename to create inside the volume. If path is not mentioned to rename the file, then the name of the file will be same as key name.
                  # Because of path the file inside the container will be named as mongod.conf =>  /etc/mongo/mongod.conf.
                 # This is often done because MongoDB expects the file to be named mongod.conf, not mongodb.conf.
+          #configMap:                     #Then every key in that ConfigMap becomes a file in the volume,
+          # name: mongodb-config          # The container would get: (etc/mongo/username→ contains "admin1" & /etc/mongo/mongodb.conf → contains your YAML config)
   volumeClaimTemplates:
     - metadata:
         name: mongo-volume
@@ -87,6 +89,24 @@ spec:
         resources:
           requests:
             storage: 1Gi
+
+===========================================
+mongodb-config.yaml
+
+apiVersion: v1
+kind: ConfigMap
+metadata:    
+  name: mongodb-config     # metadata.name: mongodb-config → name used to reference this ConfigMap in your Deployment or StatefulSet.
+immutable: false           # Means the ConfigMap can be updated later. If set to true, you cannot modify its contents after creation (you’d have to delete and recreate it).
+data:                      # The data section holds key-value pairs. You have two keys here (username & mongodb.conf)  
+  username: admin1
+  mongodb.conf: |         # This is your actual MongoDB config file content. The | symbol means “multi-line literal block,” so YAML keeps the formatting.
+    storage:
+      dbPath: /data/db        # storage.dbPath — where to store database files
+    replication:
+        replSetName: "rs0"     # replication.replSetName — the name of your replica set (used when you’re setting up MongoDB replication).
+
+#  
 
 
             
