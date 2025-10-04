@@ -1,0 +1,250 @@
+> In the kubernetes architecture chapter of this series we have learned that a pod is restarted automatically if kubernetes finds a pod in an unhealthy state.
+> but how does kubernetes knows if a pod is healthy or not.
+> In this section we will learn how kubernetes identifies whether a pod is working or not and also we will learn how we can customize this Behavior using probes. 
+
+> Any application can be in an Un-healthy State due to various reasons like bugs in the code, timeouts while communicating with an external service,DB connection failures, out of memory issues ETC 
+>In all these situation the Pod will look like it's running from the outside but internal functionality is broken because of these bugs and users won't be able to access the application.
+>In all these cases we expect the container to restart but kubernetes doesn't restart because by default kubernetes just checks the containers main process and decides if the container is Healthy or not ..It doesn't check the internal functionality of our application.
+> only if the main process crashes Kubelet will restart the container.
+> If we don't heal these unhealthy pods our service becomes unstable debugging such Pods is also tricky as the Pod status shows running.. but we don't get the expected output.
+> In our mongo-pods we deployed so far mongo-d is the main process . As long as the mongo-d process is running kubernetes just to treats the mongo-pod as healthy no matter if the internal functionality is working correctly or not.
+
+> How do we handle this scenario of pods are not working but they are not restarted too?
+> what if there is a way for us to signal to kubernetes that a pod is no longer functioning as per our expectation and let kubernetes restart it.
+> That's where kubernetes probes comes into the picture.
+> In general Probe means a tharough investigation into a matter.
+> so by defining probes we can customize how kubernetes investigates the pods. if they are working correctly or not.
+> basically we are customizing the behavior of kubernetes to check if a container is healthy or not.
+
+>There are three different types of probes that kubernetes provides:-
+	1. liveness probe
+	2. Readiness probe  
+	3. startup probe
+
+ let us learn about each one of them starting with liveness probe:-
+===================================================================
+ With liveness probe we can instruct Kubernetes on how to detect whether a pod is live or not... in other words healthy or not by the use of commands or network requests inside the container.
+> if the liveness probe command gives the exit code AS 1 which indicates failure.. kubernetes assumes the Pod is un-healthy and Kublet restarts the pod .
+> In short liveness probe ensures always have healthy pods available.
+
+> let's come back to the vs code and try to add liveness Probe.
+> please note that we Define the probes at container level not at the Pod level. 
+> Now let us try to instruct kubernetes on how to check the liveness of our container.
+> Kubernetes provides some basic kubernetes probing mechanisms 
+   	1. The first mechanism is Exec => here we ask kubernetes to execute a command within the container..kubernetes assumes a container is healthy if the command exits with a zero code and an un-healthy if it gets status code AS 1. 
+	2. The next mechanism is by making Network calls with this mechanism we ask kubernetes to make a HTTP call to a URL within the container.. kubernetes assumes a container is healthy if the container issues an HTTP response in the 200 to 399 range else it assumes the container as un-healthy.
+	3.The next one is using TCP=>  with this mechanism we try to open a port .The probe succeeds if the specific container Port is accepting traffic or else it considered as a failure. we can also make a grpc health checking request to a port inside the container and  use its result to determine whether the probe is succeeded.
+
+> for our Mongol deployment let's run a simple command to check if our container is healthy or not.
+> as we discussed to run a command we should use the exec probing mechanism and we can execute the Ping command.
+> so basically here we are defining a liveness probe with the command to execute.
+> but how frequently should kubernetes run this command to investigate (or) how many times it should retry if the command fails.
+> These further customization can be configured with four parameters:-
+	
+	> With "initial delay seconds" :- we specify how long kubernetes should wait after the container is added to execute the probe.. sometimes our service may                                         start a   little late and we are aware of it. In that case we can delay our probe execution by setting this value. 
+	> The default value is 0 seconds meaning the probe is executed immediately.
+	
+	> With "period seconds" we can Define how frequently the probe will be executed after the initial delay.
+	>This is very helpful if you want to investigate our pode periodically.
+        >The default value is 10 seconds meaning for every 10 seconds the probe is executed and if it fails the container is restarted.
+
+	> With "timeout seconds" each probe will time out and marked as failed after these many seconds.The default value is 1 second.
+	
+ 	> Finally with the "failure or success threshold" we can instruct kubernetes to retry the probe these many times after the first failure.
+        > The container will only be restarted if the probe fails for number of failure threshold times. 
+	> The default value is 3..Meaning the probe is considered as failed if it fails three times.
+	
+> So as a summary the liveness probe runs commands (or) fires HTTP calls (or) opens a port as defined by us against the container and checks if the container is running as expected or not.
+> if kubernetes finds a container is not running as per our definition Kubelet just restarts the container.
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+spec:
+  selector:
+    matchLabels:
+      app: mongo
+  serviceName: "mongo"
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:4.0.8
+          startupProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 2
+          livenessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 2
+          readinessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 1
+            periodSeconds: 10
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 2
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                configMapKeyRef:
+                  key: username
+                  name: mongodb-config
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: mongodb-secret
+          command:
+            - mongod
+            - "--bind_ip_all"
+            - --config=/etc/mongo/mongodb.conf
+          volumeMounts:
+            - name: mongo-volume
+              mountPath: /data/db
+            - name: mongodb-config
+              mountPath: /etc/mongo
+      volumes:
+        - name: mongodb-config
+          configMap:
+            name: mongodb-config
+            items:
+              - key: mongodb.conf
+                path: mongodb.conf
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-volume
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: demo-storage
+        resources:
+          requests:
+            storage: 1Gi
+
+> so let us try to give these values.so let's go back to vs code and add these values, intentionally to make it fail. I am just writing a wrong command here instead of DB I'm writing DB1 let's save it.
+> let's open the terminal and try to apply this=>  kubectl apply -f statefulset.yml as you can see our stateful set is created.
+> let's try to list down the pods=> kubectl get pods => as you can see the pods are running.
+> let's wait for some time and try to list down the pods.. Do you see the difference
+> as you can see all the pods	 are restarted two times.
+> Did you get it why?
+> This is because of liveness Probe.
+> let us try to see why this pod is restarted by describing the pod => Kubectl describe pod <pod name> 
+> In the events we can see that liveness probe is failed and as we discussed if the liveness probe fails the Pod is automatically restarted.
+> And why this liveness probe is failed this is because DB1 is not defined.. you remember we've intentionally made it to DB1 instead of DB to make it fail the reason why it failed two times is the probe will execute for every 10 seconds.
+> Now let us try to list down the pods again => kubectl get pods =>  as you can see the pods are now restarted three times.
+> so this pod will keep on restarting until we fix the liveness probe.
+> so let's go back to the pod definition and change the probe instead of DB1 I'm just changing it to DB.
+> let's apply the change.. The stateful set is changed and now let us try to list down the pods => kubectl get pods
+> As you can see the pods are running successfully and there are no restarts.
+> " So as a summary the liveness probe initially executed after one second delay and if it fails for two times the probe is marked as failure and the container is restarted and the same process continues for every 10 seconds"
+
+>The next probe is Readiness probe :- 
+==================================
+> This probe identifies when a container can handle external traffic received from a service.
+> Just like the liveness probe we can run the Readiness probe and if the Readiness probe fails then kubernetes removes the IP address of the Pod from the endpoints of all services it belongs to and when the Pod is not part of the service the Pod will not get any traffic.
+>This probe is very helpful to instruct kubernetes that a running container should not receive any traffic until it is ready. This way we can increase our success response rate.
+> so the difference between liveness probe and Readiness probe is :-
+> when a liveness probe is failed the Pod is restarted whereas when the Readiness probe fails the Pod is not restarted but it will be removed from the endpoint list of the service. So that it will not receive any traffic and once the Readiness probe is succeeds the Pod is added back to the service and it gets the usual traffic.
+
+> let's see this in action similar to the liveness probe we can add the Readiness probe.
+> I'm just copy pasting the liveness probe and changing the liveness probe to Readiness Probe and let's make this as failure intentionally by changing DB to DB1 and let's keep this customization as it is and save it.
+> let's try to go back and apply this ==> Kubectl apply -f statefulset.yml => the stateful set is changed.
+> Now let's try to list down the pods.==> kubectl get pods 
+
+NAME 	 READY 	STATUS 	 RESTRTS   AGE
+mongo-0	 1/1    running   0        11m
+mongo-1	 1/1    running   0        11m
+mongo-2	 0/1    running   0        15sec
+
+> something is not right here.. you see here it's 0 by 1 instead of one by one this means there is one container in the Pod and zero containers are ready.
+> This is because Readiness probe is failed this container is not ready to accept the traffic.
+> You can describe the Pod and check why it is not ready => kubectl describe pod mongo-2 => As you can see the Readiness probe is failed.
+> This is because DB1 is not defined.
+> Now let us try to describe the service and see if the pod-IP is deleted from the end points list or not.
+> so before that let's try to list down the IP's of the pod => kubectl get pods -o wide  => These are the IP's of the pods.
+> Now let's try to describe the service => kubectl describe svc
+> as you can see in the endpoint section there are only two IPS available the third pod-IP is not available.
+> This is because as Readiness probe is failed this pod is removed from the service.
+> Now let us try to fix this Readiness probe and see if it gets added back.
+> let's make it as DB save it.. let's try to delete the statefull-set and apply back.=> The stateful set is created..let's try to list down the pods.
+> As you can see all the pords are running and all the containers are ready 
+> now let's try to describe the service and see if the three pods are available in endpoint section.
+> as you can see three pods are available in the service.
+
+>The final probe is startup probe:-
+===================================
+> Startup Probe provides a way to delay the execution of liveness probe and Readiness probe until a container indicates it's able to handle them.
+> meaning liveness and Readiness probes are executed only if the startup probe succeeds.
+> if a container fails its startup-probe then the container is killed and follows the pod restart policy .
+> we can set the restart policy in the pod spec this defines when the pod should get restarted
+> the default value is "always"... meaning no matter how the Pod is exited it should always restart the pods
+> the other value can be "on failure" ...this means the pod should get restarted only if it exits with a non-zero status code
+> the third value can be "never"... which means no matter what how the Pod exits it should never restart.
+
+> Please note that this restart policy is applied for every Pod.. so to make our Pod restart let's leave this with the default value, which is "always" and let's try to add the startup probe which is similar to the liveness probe.
+> I'm just changing it to Startup Probe and intentionally let's make it fail by making db to db1
+> save it go back to terminal delete the stateful set and add it again.
+> now let's try to list down the pods and see what happens.. As you can see the Pod is running but it's not ready yet (0/1).
+> let's try to list down the pods again and see what we get.
+> The Pod is restarted twice let's describe the Pod and see why it is getting restarted. = kubectl describe pod <pod name>
+> as you can see startup probe is failed because DB1 is not defined and as the restart policy is "always" the pod is getting restarted.
+> so let's try to list down the pods again.=> kubectl get pods 
+
+NAME 	 READY 	STATUS 	              RESTRTS   AGE
+mongo-0	 0/1     Crash loop back off   4       11m
+
+> As you can see the Pod is restarting and if you can see the status of the Pod it is "Crash loop back off" meaning if the Pod is restarted again and again the Pod enters into the "crash loop back of State".
+> The crashed Loop backup status doesn't mean the kubelet has given up ..it means that after every crash the Kubelet is increasing the time period before restarting the container. that means after first crash Kubelet restarts the container immediately and if it crashes again the Kubelet waits for 10 seconds before restarting it and if it crashes again the delay is increased to 20 before restarting it and this delay is then increased exponentially for every restart and finally it is limited to 300 seconds.
+> once the interval hits the 300 seconds limit. The Kubelet keeps restarting the container indefinitely for every 5 minutes.. until the Pod- either stops crashing or it is deleted.
+> so let's fix the startup probe let's change it to DB.
+> go back to terminal let's delete the stateful set and add it again.. now let's try to list all the pods and see what we get.
+>  let's wait for some time and try to get the pods again..As you can see all the pods are running and all the containers are ready.
+> Startup probe should be used when the application in our container could take a significant amount of time to reach its normal operating state.
+> if we don't add this probe the liveness probe May Fail and the Pod enters into a restart Loop.
+
+> let us summarize how these three probes work together with a flow diagram:- when a pod is scheduled kubernetes initially waits for the initial delay seconds and runs the startup probe.
+> if it fails kubernetes will retray the number of times given in "Failure threshold" 
+> if it fails even in the last retry the Pod is killed and follows the pod's "restart policy".
+> if the startup probe succeeds both liveness and Readiness probes are executed after "initial delay seconds".
+> if the liveness probe fails, kubernetes will retry the number of times given in "Failure threshold".
+> if it fails even in the last retry the Pod is restarted and
+> if it succeeds the Pod runs and the same probe is executed periodically as per given "Period seconds".
+
+> similarly if the Readiness proof fails kubernetes will retray the number of times given in the "failure threshold".
+> if it fails even in the last retry the Pod is "removed from the service".
+> and if it succeeds the Pod gets a usual traffic and the same probe is executed periodically as per given In the "period seconds".
+> though probes are very helpful .Should be extra cautious while defining these probes by following some best practices.
+
+> a probe that runs too frequently wastes the resources and affects the application performance .
+> and the probe that runs infrequently can let containers sit in an unhealthy state for too long.
+> Probes should be as light as possible ,to ensure our checks are executed quickly avoid using expensive operations within our probes.
+> a probe that does heavy lifting can slow down our container.
+> as we discussed probes are affected by restart policies using the "NEVER policy" will keep the container in a "FAILED STATE FOREVER"
+> also note that simple containers that always terminate on failure don't need a probe.
+> use probes only when it is needed.
+> whenever we add new features fixes in our application those can impact our probe performance
+> so we should regularly check our probes and make necessary changes.
