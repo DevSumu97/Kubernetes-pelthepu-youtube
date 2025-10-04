@@ -1,1 +1,12 @@
-
+apiVersion: v1
+kind: ConfigMap
+metadata:    
+  name: mongodb-config     # metadata.name: mongodb-config → name used to reference this ConfigMap in your Deployment or StatefulSet.
+immutable: false           # Means the ConfigMap can be updated later. If set to true, you cannot modify its contents after creation (you’d have to delete and recreate it).
+data:                      # The data section holds key-value pairs. You have two keys here (username & mongodb.conf)  
+  username: admin1
+  mongodb.conf: |         # This is your actual MongoDB config file content. The | symbol means “multi-line literal block,” so YAML keeps the formatting.
+    storage:
+      dbPath: /data/db     # storage.dbPath — where to store database files
+    replication:
+        replSetName: "rs0"  # replication.replSetName — the name of your replica set (used when you’re setting up MongoDB replication).
