@@ -1,0 +1,345 @@
+Kubernetes Volumes Simplified 
+=============================
+
+>Containers are ephemeral in nature, which means when a container is deleted the entire data associated with that container will be lost but we have seen how to process the data even if the container gets deleted using docker volumes.
+>Same applies to kubernetes when a pod is deleted all the data associated with that pod is deleted in this section we will be looking at how to persist the data even if the pod gets deleted using kubernetes volumes. 
+
+# problem statement-1=> When we create the pods with deployment or replica set kubernetes make sure to maintain the given number of replicas let's say we created three replicas of our application and we have written some data to those pods if any replica or pod goes down kubernetes deployment creates another pod to maintain the actual state which is 3 in our case. but these new pods gets created with a clean slate and the data that we have written previously to the pod is deleted so in this case data is lost when the pod is deleted or restarted which leads to data loss.
+
+# problem statement 2 => when we have multiple replicas of the same application how do they share the same data. Because by default the data is stored in the container and not accessible to other pods. That means data is not shared across the pods.
+
+These are the two main problems that we come across when we store the data in pods.
+
+# That's where KUBERNETES VOLUME come into picture with kubernetes volumes we can solve the above two problems that is sharing the data across the pods and persisting the data even if the pod restart or node goes down.
+
+# In simple words volume is a directory with some data in it and the data is accessible to the containers in a pod. Let us see the different types of volumes available in kubernetes with examples. for a better understanding let us start by deploying mongodb to kubernetes. 
+
+ > deployment manifest as you can see we are running the image with one replica also we are passing the root username and root password as environment variables. 
+
+apps/v1 
+kind: Deployment
+metadata:
+  name:mongo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+   template:
+      metadata:
+      labels:
+        app: mongo
+      spec:
+        containers:
+        - image: mongo
+          name: mongo
+          args: ["-dbpath", "/data/db"] 
+          env:
+           - name: MONGO_INITDB_ROOT_USERNAME
+             value: "admin"
+           - name: MONGO_INITDB_ROOT_PASSWORD
+             value "password" 
+
+#In order to access this mango deployment we need to create the service for the same let's go back to vs code and create a service manifest file.
+
+apiVersion: vl
+kind: Service 
+metadata:
+  name: mongo-svc
+spec:
+  ports:
+  - port: 27017 
+    protocol: TCP 
+    targetPort: 27017 
+    nodePort: 32000 
+  selector:
+    app: mongo 
+type: NodePort
+
+# port forward this service  kubectl port-forward svc/mongo-svc 32000:27017 
+
+(This is typically used for accessing services running within your Kubernetes cluster via your local machine."Localhost" refers to the local computer that a user is working on. It's often identified by the IP address 127.0.0.1 and is used to access the network services that are running on the same system.)
+
+> let's give the username and password that we gave which is admin and the password. now we connected to our mongodb let us try to create a simple database with the name db and the collection name as studios. so this is our database and this is our collection and let's try to insert a simple record add data into document and let's add just one column title "refer volumes" insert. perfect, our data is stored to mongodb now.
+
+>So whatever the data we created now is stored in the container because of that the data cannot be accessed by other containers also for any reason if the container is deleted or restarted all the data written to that container will be lost. 
+>let us see that in action to demonstrate that.
+> let us try to kill the process which is running in the container and see if the data is preserved or lost.
+
+> so let's list all the pods   # kubectl get pods 
+> Get into this pod    # kubectl exec -it <pod name> --/bin/sh 
+> Now we are in the pod let us see on which process our mango-bd is running with  # ps aux (or) ps -ef 
+> As you can see our mongodb is running on the Process ID -1 to kill this process all we need to do is    # kill 1 ( 1 is PID)
+> Our mongodb container is deleted and we came back out of the container we can verify that by listing the pods. Under restarts = 1....meaning the container is restarted. (please note that we restarted the container not the pod) 
+> Now let us try to access the same data that we created earlier in mango db let's refresh here as you can see the complete database itself is deleted.
+
+# So the problem with this approach is that data is not shared across containers and when a container is deleted data associated with that container is also deleted 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# emptydir
+==========
+
+> The solution to this problem is to store the data at the pod level instead of storing at the container level to store the data at the pod level kubernetes gives us one type of volume that is " emptydir"
+		         ==================
+> It is created when a pod is first assigned to the node it remains active as long as the pod is running on that node now containers in the pod can share the same data as the data is stored at the pod level now even if the container is restarted the data is still available in the pod.
+
+>To store the data at pod level all we need to do is first declare the volume under the spec .Name as volume and the type of the volume as emptydir just curly braces that's it.
+> once the volume is declared we need to mount this volume onto the container for that under the container section volume mounts and the mount path so this is the directory in the container. 
+
+apps/v1 
+kind: Deployment
+metadata:
+  name:mongo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+   template:
+      metadata:
+      labels:
+        app: mongo
+      spec:
+        containers:
+        - image: mongo
+          name: mongo
+          args: ["-dbpath", "/data/db"] 
+          env:
+           - name: MONGO_INITDB_ROOT_USERNAME
+             value: "admin"
+           - name: MONGO_INITDB_ROOT_PASSWORD
+             value "password"
+          volumeMounts:
+	  - mountPath: /data/db
+ 	    name: mongo-volume
+      volumes:
+      - name: mongo-volume
+	emptyDir: {}
+
+kubectl apply-f deployment.yml
+
+> so let's list all the pods   # kubectl get pods 
+> Get into this pod    # kubectl exec -it <pod name> --/bin/sh 
+> Now we are in the pod let us see on which process our mango-bd is running with  # ps aux (or) ps -ef 
+> As you can see our mongodb is running on the Process ID -1 to kill this process all we need to do is    # kill 1 ( 1 is PID)
+> Our mongodb container is deleted and we came back out of the container we can verify that by listing the pods. Under restarts = 1....meaning the container is restarted. (please note that we restarted the container not the pod) 
+
+> We can see this time the data is not deleted meaning even if we restart the container the data is not deleted as we are storing the data at pod level using emptydir volume in kubernetes.
+> so when we store the data in empty volume the data is available as long as the pod exists even if the container restarts.  
+
+> You might be wondering where the data is being stored.  so the data of the "emptyDir" volume gets stored under the node where our pod is running.
+ our pod is running in the minikube so let's login into minikube node => minikube ssh => sudo ls /var/lib/kubelet/pods 
+> You can see the directories with pod ids let us try to get the id of our pod.We can get our pod id with ## kubectl get pods 
+
+>  let's output this pod yaml ## kubectl get po <pod name> -o yaml ==> get the uid (pod id)
+
+> sudo ls /var/lib/kubelet/pods/<uid/pod id>   => O/p => containers etc-hosts plugins volumes 
+
+> sudo ls /var/lib/kubelet/pods/<uid/pod id>/volumes  => O/p => kubernetes.io~empty-dir
+
+> sudo ls /var/lib/kubelet/pods/<uid/pod id>/volumes/kubernetes.io~empty-dir =>  O/p => mongo-volumes (our volume)
+
+> sudo ls /var/lib/kubelet/pods/<uid/pod id>/volumes/kubernetes.io~empty-dir/mongo-volumes =>   so these are the actual database files in the emptydir volume 
+
+> but storing the data to emptydir volume is not a perfect solution we will be facing the same problems that we discussed earlier that is sharing data and persisting data even with "emptyDir" 
+
+>let's say if there are multiple pods running for the same application if the data is being stored at the pod level other pods cannot share the data and also if the pod gets deleted and restarted for any reason all the data associated with that pod is also deleted which again leads to the same data loss problem .
+
+> let us try to see this one also in action now let us try to delete the pod ## kubectl delete pod <pod name> ..Now pod is deleted.
+> let's list down the pods now.As we are using deployment the old pod is deleted and the deployment is creating one replica because it always make sure the given number of replicas are available.
+> let us check back if the pod is running perfect now ## Kubectl get pods ==> the pod is running now.
+
+> let us try to list down the same directory in the minikube node=> minikube ssh 
+   ## sudo ls /var/lib/kubelet/pods/<uid/pod id>/volumes/kubernetes.io~empty-dir/mongo-volumes
+              As you can see this file doesn't exist meaning when a pod is deleted entire data associated with that pod is deleted from the node.
+
+> let us try to see the same from the Mongo-db compass/ gui as well let's go back to the compass and try to refresh our database as you can see the data is lost  
+   The solution to this problem is to take the volume out of the pod that is where " host path"  comes into picture.
+										====================
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+## host path
+============
+
+>  "host path" volume wants a file or directory from the host nodes file system into our pod so now all the pods on the same node can share the data and even if the pod gets deleted the data will be still available because the data is being stored on the node.
+
+> To use the host path volume, all we need to do is replace "emptyDir" with host path and instead of just empty curly braces we should specify on which folder the data should get stored on the node. let's give it a slash data so now the data will be stored in the slash data directory on the node and the same data will be mounted in the container at the /data/db directory.
+
+
+apps/v1 
+kind: Deployment
+metadata:
+  name:mongo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+   template:
+      metadata:
+      labels:
+        app: mongo
+      spec:
+        containers:
+        - image: mongo
+          name: mongo
+          args: ["-dbpath", "/data/db"] 
+          env:
+           - name: MONGO_INITDB_ROOT_USERNAME
+             value: "admin"
+           - name: MONGO_INITDB_ROOT_PASSWORD
+             value "password"
+          volumeMounts:
+	  - mountPath: /data/db  => Path of the volume on container
+ 	    name: mongo-volume      -------------------------
+      volumes:
+      - name: mongo-volume
+	hostpath:
+          path: /data   ==> Path of the volume on node 
+			------------------------------
+> kubectl apply-f deployment.yaml.
+
+> Kubectl get pods
+ 
+ let's port forward the service again... let's go back to mongo-db compass and create database db and add a document "testing" so now the document is created in the mongodb
+> Now let's go back to the terminal and try to do the same steps that we did with the "emptydir" volume that is delete the pod and see if the data is still available. ## kubectl delete pod <name of the pod> ===> it's deleted.
+> let's check back our pods as we are using deployment a new pod is created to maintain the actual state.
+> let's do the port forwarding again and go back to  Mango-db compass and refresh the database as you can see the data is still available so with host path volumes we can save the data even if the pod gets deleted or restarted .
+> but we will have the same problems that we had earlier that is sharing data and persisting data when we have multiple nodes in the same cluster.
+> let's say we have multiple pods running for an application and those are running on different nodes in this case the data that is stored in the node-1 using host path volume cannot be shared by the pod that is running in the node-2 so for any reason if the node gets deleted or restarted all the data that is stored on the node also gets deleted which again leads to the same problem that is the data loss.
+>so with host path volumes we can save the data if the pod gets restarted but if the node is deleted we will have the same problems the solution to this problem is take out the storage from the node and move it to the external storage like "aws EBS" that is where "persistent volumes" comes into the picture the volumes that we discussed so far are ephemeral volumes meaning when a pod or node gets deleted the data associated with those volumes also gets deleted but these persistent volumes don't depend on any individual pod or node.That uses the persistent volume.
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## Persistant volume 
+-------------------
+
+> kubernetes offers three components to persist the data irrespective of the pod restarts or node failures. Those are persistent volumes, persistent volume claims and storage classes.
+> persistent volume is a piece of storage in the cluster that has been provisioned by an administrator or dynamically provisioned using storage classes.
+> In simple words persistent volume is a kubernetes resource can be created using yaml just like any other kubernetes resource. It is an abstract/isolated component and it must take storage from the actual physical storage like "aws EBS or NFS server"  let us try to create a simple persistent volume. 
+> specifications related to the persistent volume:-
+  > so first of all let's try to give the storage capacity... so when we create a persistent volume we must specify with how much memory this persistent volume should be created ...we can give the storage capacity with capacity and this storage has 5 gigabyte.
+  > we can restrict the access to this persistent volume with access modes and let me give it as read write many.
+	possible values for this access modes property are;-
+	 1. read write many- this volume can be mounted as a read write by many nodes if your pods are running across different nodes this is the best option. 
+	 2. read write once- if all of your pods are running on a single node read write once option is the best, when you specify access mode as read write once                             and if your pods are running on different nodes they cannot use this volume.
+         3. read only once - You cannot write the data to this persistent volume it is just a read-only mode
+	 4. read only many -You cannot write the data to this persistent volume it is just a read-only mode
+	 5. ReadWriteOncePod-  read and write on the volume by only a specific pod.
+> kubernetes is suggesting to use local volume, so let's try to use the local volume as you can see here we should specify the type of the volume and on what path the data should get stored. Node affinity section is just to mention on which node the data should get stored when you have multiple nodes in the cluster .
+
+PersistentVolume creation
+=============================
+
+apiVersion: v1 
+kind: PersistentVolume
+metadata:
+  name: mongo-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany 
+  hostPath:
+    path: /storage/data"
+
+> As you can see our pv is created and the status is available meaning this pv is available for the use and the capacity is 5gb and the access mode is read write many. like this we have multiple PV's in our cluster. but how do we use this pv in the mongo pod that we have?
+> Here the Persistant volume claim will come into picture 
+
+PersistentVolumeClaim
+=====================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+spec:
+  storageClassName: demo-storage
+  accessModes:      ============
+  - ReadWriteMany
+  resources:
+   requests:
+     storage: 3Gi
+   
+> Persistent volume claim is another kubernetes resource in which we will mention how much storage our pod needs.
+> we cannot use persistent volumes directly in the pod.
+> when we specify the "access mode" and the "storage capacity" in the persistent volume claim.
+> "persistent volume claim" finds out the appropriate "persistent volume" available in the cluster based on the "storage and access mode".
+>  As you can see here we give the "read write many" and "3gb memory" we need for...In the "persistent volume claim". 
+> So when we create this claim, persistent volume claim will look for the appropriate persistent volume in the cluster and binds it.
+
+Now we should specify this persistent volume claim in the pod. So when we run this pod and declare a volume with this "persistent volume claim" the pod will look for the "persistent volume claim" and attaches the "persistent volume" that is bound to the "persistent volume claim".
+
+> So instead of using "persistent volume" directly in the pod we will use it through the "persistent volume claim".
+
+Persistant volume claim allocation to pod 
+========================================
+apps/v1 
+kind: Deployment
+metadata:
+  name:mongo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+   template:
+      metadata:
+      labels:
+        app: mongo
+      spec:
+        containers:
+        - image: mongo
+          name: mongo
+          args: ["-dbpath", "/data/db"] 
+          env:
+           - name: MONGO_INITDB_ROOT_USERNAME
+             value: "admin"
+           - name: MONGO_INITDB_ROOT_PASSWORD
+             value "password"
+          volumeMounts:
+	  - mountPath: /data/db  => Path of the volume on container
+ 	    name: mongo-volume      -------------------------
+      volumes:
+      - name: mongo-volume
+	persistantVolumeClaim:
+            claimName:mongo-pvc   ==> Path of the volume on node 
+		==============
+> We can see our pvc is created and the status of this pvc is "BOUND" meaning it is already attached to a persistent volume and this shows that to which "persistent volume" this "persistent volume claim" is attached to and again "5gb" is the capacity and the "read write many" is the access mode.
+
+> Now if we try to list down the persistent volume the status of the persistent volume also changes from "available" to "bound" because the newly created persistent volume claim claimed the persistent volume.
+
+> In real time the pods are created by the developers and the persistant volumes are created by the administrator. so whenever we need a PV we cannot go and ask administrator to create the PV for us which will delay our work so there must be a way for us to create the PV's dynamically whenever we need PV's .
+>That's where storage class comes into the picture. 
+
+> "Storage class" is also another kubernetes resource in which we specify how the PV's should be created.
+
+> So in this case we don't need to create the "persistent volume" by ourself "storage class" will do the job for us and once the "persistent volume" is created that is bound to the "persistant volume claim" after which the "persistnat volume" can be used actively by the pod.
+											====================
+
+Storage Class
+===============
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass 
+metadata:
+  name: demo-storage
+provisioner: k8s.io/minikube-hostpath 
+volumeBindingMode: Immediate
+reclaimPolicy: Delete
+
+
+> provisioner field specifies how the pv should be provisioned or how the pv should be created. (aws S3, EFS, Azure bucket, local storage)
+> so this is like one time job so once the storage class is created, as usual we will create the persistent volume claim and we will use this persistent volume claim in the pod.
+
+> The Reclaim Policy defines what happens to the PersistentVolume's storage when the associated claim is deleted.
+   There are several options for the Reclaim Policy
+   1.Retain: If the Reclaim Policy is set to Retain, the PersistentVolume is not automatically deleted after the claim is released. It is up to the administrator to              manually reclaim or delete the resources associated with the PersistentVolume.
+   2.Delete: If the Reclaim Policy is set to Delete, the associated storage will be deleted automatically when the claim is released. This means that the storage will be erased and will no longer be accessible after the claim is deleted.
+
+> As we specified the "storage class" name in the "persistent volume claim" the "storage class" will create the appropriate "Persistant volume" for us based on the access mode and the capacity that we specified in the persistent volume claim.
+-----------        -----------------------------------------------------------
+
+> PV will be automatically created and the status is bound because we mentioned the "volume binding mode" as "immediate" as soon as the pvc is created the pv is created and it is bound and the status of the persistent volume is bound to this pvc and this is created using the "demo storage" storage class.
+
+> so to summarize today we learned what is persistent volume what is persistent volume claim and what is storage class how the persistent volume can be used by the pod and how the persistent volumes can be created using storage classes.
+
+
