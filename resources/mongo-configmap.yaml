@@ -7,6 +7,6 @@ data:                      # The data section holds key-value pairs. You have tw
   username: admin1
   mongodb.conf: |         # This is your actual MongoDB config file content. The | symbol means “multi-line literal block,” so YAML keeps the formatting.
     storage:
-      dbPath: /data/db    # storage.dbPath — where to store database files
+      dbPath: /data/db     # storage.dbPath — where to store database files
     replication:
         replSetName: "rs0"  # replication.replSetName — the name of your replica set (used when you’re setting up MongoDB replication).
