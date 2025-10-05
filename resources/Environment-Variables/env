@@ -1,1 +1,360 @@
+=> Define a command and arguments when you create a Pod
+--------------------------------------------------------
+> When you create a Pod, you can define a command and arguments for the containers that run in the Pod. 
+> To define a command, include the command field in the configuration file. To define arguments for the command, include the args field in the configuration file.
+> The command and arguments that you define cannot be changed after the Pod is created.
+> The command and arguments that you define in the configuration file override the default command and arguments provided by the container image.
+> If you define args, but do not define a command, the default command is used with your new arguments.
 
+# To create a pod named demo-pod with the Debian image and use the printenv HOSTNAME command:
+
+   => kubectl run cmdargpod --image=debian --command -- printenv HOSTNAME
+
+# To apply a YAML file and check the status of the pod:
+
+     => kubectl apply -f your-file.yaml
+     => kubectl get pod -o wide
+
+# To verify the hostname is printed in the logs of a pod, use the following commands:
+
+     => kubectl logs cmdargpod
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cmdargpod
+spec:
+  containers:
+  - name: cmdarg-container
+    image: debian
+    command: ["printenv"]
+    args: ["HOSTNAME"]
+...
+
+command: ["echo"]
+args: ["Hellow"]
+
+command: ["sleep"]
+args: ["10"]
+
+command: ["/bin/sh"]   # to run the command over the shell
+args: ["-c","date"]   # -c is to run the command (date) 
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+ENVIRONMENT VARIABLES & its use cases :- 
+-------------------------------------
+
+Define an environment variable for a container:-
+
+> When you create a Pod, you can set environment variables for the containers that run in the Pod.
+> To set environment variables, include the env or envFrom field in the configuration file.
+
+   The env and envFrom fields have different effects.
+
+> env :- Allows you to set environment variables for a container, specifying a value directly for each variable that you name.
+> envFrom :- Allows you to set environment variables for a container by referencing either a ConfigMap or a Secret.
+             When you use envFrom, all the key-value pairs in the referenced ConfigMap or Secret are set as environment variables for the container.
+
+
+Note: > The environment variables set using the env or envFrom field override any environment variables specified in the container image(Dockerfile)
+
+LAB:
+
+1st use case of environment variables 
+---------------------------------------
+
+> By using environment variables in Kubernetes, you can easily configure your applications without having to modify your application code(Dockerfile)
+  This makes it easier to manage and update your application, and allows you to quickly and easily scale your application as needed.
+
+Replacing pre-set env variabls WORDPRESS_VERSION 4.2.2 to 5.2.2 &  WORDPRESS_USER admin to ubuntu without editing the Dockerfile.
+
+# vi Dockerfile 
+
+FROM nginx
+Run apt-get update
+ENV WORDPRESS_VERSION 4.2.2    => Pre-set/default env variables 
+ENV WORDPRESS_USER admin       => Pre-set/default env variables
+EXPOSE 80
+
+# docker build -t wordpressimg .  => to build the image 
+
+# create the pod & container using = wordpressimg
+
+vi wordpress.yml 
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: env-var
+  labels:
+    purpose: demonstrate-env-var
+spec:
+  containers:
+  - name: env-var-container
+    image: wordpressimg
+    env:
+    - name: WORDPRESS_VERSION  
+      value: "5.2.2"       => Replacing the env variable value from 4.2.2 to 5.2.2 without editing the Dockerfile used to build the image of container
+    - name: WORDPRESS_USER
+      value: "ubuntu"      => Replacing the env variable value from admin to ubuntu without editing the Dockerfile used to build the image of container
+...
+
+=> Apply your YAML files by running the following command
+       # kubectl apply -f wordpress.yml 
+
+=> To see the list of pods => kubectl get pods
+
+=> To check the logs of a pod => kubectl logs <pod-name>
+
+=> To print the environment variables of a pod => kubectl exec <pod-name> --printenv
+
+
+# 2nd use case of environment variables
+----------------------------------------
+
+> Environment variables that you define in a Pod's configuration under (spec=>containers=>env) can be used elsewhere in the configuration.
+  for example in commands and arguments that you set for the Pod's containers.
+
+Lab: 
+
+Vi re-use-env.yml
+...
+apiVersion: v1
+kind: Pod
+metadata:
+  name: env-var-2
+  labels:
+    purpose: demonstrate-env-var-2
+spec:
+  containers:
+  - name: env-var
+    image: wordpress
+    env:
+    - name: WORDPRESS_VERSION
+      value: "5.2.2"
+    - name: WORDPRESS_USER
+      value: "ubuntu"
+    command: ["echo"]
+    args: ["$(WORDPRESS_VERSION) $(WORDPRESS_USER)"]
+...
+
+Upon creation of container, the command echo $ WORDPRESS_VERSION & $ WORDPRESS_USER will run on the container and get the O/p as 5.2.2 & ubuntu
+
+=> To check the logs of a pod => kubectl logs <pod-name>
+----------------------------------------------------------------------------------------------------------------------------------------------------
+ 
+# Expose Pod & Container Information to running Containers through Environment Variables:-
+
+    In Kubernetes, there are two ways to expose Pod and container fields to a running container:
+
+ 	1. Environment variables, as explained in this task
+ 	2. Volume files
+
+	Together, these two ways of exposing Pod and container fields are called the downward API.
+
+----------------------------------------------
+
+=> Pod can use environment variables to expose information about itself to containers running in the pod, using the downward API.
+
+> Pod-level fields, you can provide them to a container either as an environment variable or using a downwardAPI volume.
+ 
+# The fields available via either mechanism are:
+ 1. metadata.name => the pod's name
+ 2.metadata.namespace =>the pod's namespace
+ 3. metadata.uid => the pod's unique ID
+ 4. metadata.annotations['<KEY>'] => the value of the pod's annotation named <KEY> (for example, metadata.annotations['myannotation'])
+ 5. metadata.labels['<KEY>'] =>the text value of the pod's label named <KEY> (for example, metadata.labels['mylabel'])
+
+
+# The following information is available through environment variables but not as a downwardAPI volume fieldRef:
+ 1. spec.serviceAccountName => the name of the pod's service account
+ 2. spec.nodeName => the name of the node where the Pod is executing
+ 3. status.hostIP => the primary IP address of the node to which the Pod is assigned ( EC2 instance Ip)
+ 4. status.podIP => the pod's primary IP address (usually, its IPv4 address)
+
+
+# The following information is available through a downwardAPI volume fieldRef, but not as environment variables:
+
+ 1. metadata.labels => all of the pod's labels, formatted as label-key="escaped-label-value" with one label per line
+ 2. metadata.annotations => all of the pod's annotations, formatted as annotation-key="escaped-annotation-value" with one annotation per line.
+
+Lab:
+
+Vi podfield.yml
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dapi-envars-fieldref
+spec:
+  containers:
+    - name: test-container            # Pod info giving to the test-container
+      image: registry.k8s.io/busybox
+      command: [ "sh", "-c"]              # Instructions given in the command field will be executed when the container is building.
+      args:
+      - while true; do                     # The given command is a Bash script that runs an infinite loop using the while true; do..done construct.
+          echo -en '\n';                                       # By executing this script, you can observe the values of these environment variables. .
+          printenv MY_NODE_NAME MY_POD_NAME MY_POD_NAMESPACE; 
+          printenv MY_POD_IP MY_POD_SERVICE_ACCOUNT;           
+          sleep 10;                                       # env variables will be updated every 10 seconds due to the sleep 10 command in the loop. 
+        done; 						  # The script will continue to run indefinitely until it's manually terminated
+      env:
+        - name: MY_NODE_NAME              # => Variable KEY
+          valueFrom:                      # => from where the KEY will get the value 
+            fieldRef:                     # => POD level fields value is passed from fieldRef & fieldPath
+              fieldPath: spec.nodeName
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: MY_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: MY_POD_SERVICE_ACCOUNT
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName
+  restartPolicy: Never
+...
+
+=> Apply your YAML files by running the following command
+       # kubectl apply -f  podfield.yml 
+
+=> To see the list of pods => kubectl get pods
+
+=> To check the logs of a pod => kubectl logs <pod-name>
+
+=> To print the environment variables of a pod => kubectl exec <pod-name> -- printenv
+---------------------------------------------------------------------------------------------------------------------------------------------------
+ 
+# container-level fields allow you to provide information about requests and limits for resources such as CPU and memory.
+
+	1. resource: limits.cpu => A container's CPU limit
+	2. resource: requests.cpu => A container's CPU request
+	3. resource: limits.memory =>A container's memory limit
+	4. resource: requests.memory=> A container's memory request
+	5. resource: limits.hugepages => A container's hugepages limit
+	6. resource: requests.hugepages => A container's hugepages request
+	7. resource: limits.ephemeral-storage => A container's ephemeral-storage limit
+	8. resource: requests.ephemeral-storage=> A container's ephemeral-storage request
+
+# Giving Container level fields as input to the application running inside the container.
+
+vi containerfield.yml
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dapi-envars-resourcefieldref
+spec:
+  containers:
+    - name: test-container
+      image: registry.k8s.io/busybox:1.24
+      command: [ "sh", "-c"]
+      args:
+      - while true; do
+          echo -en '\n';
+          printenv MY_CPU_REQUEST MY_CPU_LIMIT;
+          printenv MY_MEM_REQUEST MY_MEM_LIMIT;
+          sleep 10;
+        done;
+      resources:
+        requests:
+          memory: "32Mi"
+          cpu: "125m"
+        limits:
+          memory: "64Mi"
+          cpu: "250m"
+      env:
+        - name: MY_CPU_REQUEST
+          valueFrom:
+            resourceFieldRef:                # Container level fields value is passed to key from => resourceFieldRef
+              containerName: test-container  # Container to which cpu is requested for 
+              resource: requests.cpu
+        - name: MY_CPU_LIMIT
+          valueFrom:
+            resourceFieldRef:
+              containerName: test-container
+              resource: limits.cpu
+        - name: MY_MEM_REQUEST
+          valueFrom:
+            resourceFieldRef:                
+              containerName: test-container
+              resource: requests.memory
+        - name: MY_MEM_LIMIT
+          valueFrom:
+            resourceFieldRef:
+              containerName: test-container
+              resource: limits.memory
+  restartPolicy: Never
+...
+
+
+=> Apply your YAML files by running the following command
+       # kubectl apply -f  containerfield.yml 
+
+=> To see the list of pods => kubectl get pods
+
+=> To check the logs of a pod => kubectl logs <pod-name>
+
+=> To print the environment variables of a pod => kubectl exec <pod-name> -- printenv
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# Expose pod information to containers through files in Kubernetes by using the volume mount.You can expose various metadata about the pod to the 
+containers running within it.This can be useful in many scenarios, such as passing environment variables or providing container-specific configuration files.
+
+Create a volume over the pod and 2 files one for labels & other for anotation to share these data with containers .
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: downwardapi-volumepod        # Name of the pod 
+  labels:
+    dapi: volume
+    cluster: test-cluster
+  annotations:
+    color: red
+spec:
+  containers:
+    - name: client-container            # Name of the container 
+      image: registry.k8s.io/busybox	#Image used to create the container 
+      command: ["sh", "-c"]
+      args:
+      - while true; do
+          if [[ -e /etc/podinfo/labels ]]; then
+            echo -en '\n\n'; cat /etc/podinfo/labels; fi;
+          if [[ -e /etc/podinfo/annotations ]]; then
+            echo -en '\n\n'; cat /etc/podinfo/annotations; fi;
+          sleep 5;
+        done;
+      volumeMounts:            # Create/mount a volume by name (podlevelinfo) over the pod (downwardapi-volumepod)in the path mentioned in mountpath                             
+        - name: podlevelinfo                     
+          mountPath: /etc/podlevelinfo 
+  volumes:                       
+    - name: podlevelinfo            # Inside the volume by name podlevelinfo create items by the downwardAPI 
+      downwardAPI:
+        items:
+          - path: "labels"                    # Path specifies the name of the file(labels) to create inside the volume-podlevelinfo.
+            fieldRef:                         # fieldRef specifies from where the data to be taken to the file. 
+              fieldPath: metadata.labels      # fieldPath specifies the source of data 
+          - path: "annotations"
+            fieldRef:
+              fieldPath: metadata.annotations
+...
+
+# To apply the YAML files => kubectl apply -f volume.yaml
+
+# To see the pods running in your Kubernetes cluster => kubectl get pods
+
+# To see the volume files created by the downwardapi-volume pod=> kubectl exec -it downwardapi-volumepod -- sh
+
+# cat labels => you will get the O/p dapi: volume & cluster: test-cluster
+
+# cat annotations  => you will get the O/p  color: red
