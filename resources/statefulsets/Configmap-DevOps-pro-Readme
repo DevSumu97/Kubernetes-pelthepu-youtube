@@ -81,6 +81,7 @@ spec:
 
 ....
 kubectl describe po configmap-demo-1
+
 O/P=>   Environment Variables from:
           configmap-demo-1  ConfigMap  Optional: false
 
@@ -110,8 +111,8 @@ spec:
   - name: demo-container
     image: nginx
     volumeMounts:
-      - name: config             => Name of the volume created inside the pod
-        mountPath: /etc/config   => Path where the volume by name config is mounted over the pod
+      - name: config             => Name of the volume created inside the container
+        mountPath: /etc/Sumu   => Path where the volume by name config is mounted over the container
   volumes:
   - name: config        => Name of the volume created over the pod
     configMap:          => Value to the volume by name config is assigned from the configmap(cm-3) created above
@@ -121,7 +122,7 @@ spec:
 # kubectl apply -f cm-3.yml 
 # kubectl get po 
 # kubectl exec -it configmap-demo-3 --bash => to go inside the pod 
-# cd /etc/config => ls => data-file 
+# cd /etc/Sumu => ls => data-file 
 # cat data-file => username="root" & password="12345"
 
 
