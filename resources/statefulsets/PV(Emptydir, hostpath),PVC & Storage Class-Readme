@@ -25,53 +25,63 @@ in kubernetes with examples. for a better understanding let us start by deployin
 
  > deployment manifest as you can see we are running the image with one replica also we are passing the root username and root password as environment variables. 
 
-apps/v1 
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name:mongo
+  name: mongo
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: mongo
-   template:
-      metadata:
+  template:
+    metadata:
       labels:
         app: mongo
-      spec:
-        containers:
-        - image: mongo
-          name: mongo
-          args: ["-dbpath", "/data/db"] 
-          env:
-           - name: MONGO_INITDB_ROOT_USERNAME
-             value: "admin"
-           - name: MONGO_INITDB_ROOT_PASSWORD
-             value "password" 
+    spec:
+      containers:
+      - name: mongo
+        image: mongo
+        args: ["--dbpath", "/data/db"]
+        env:
+          - name: MONGO_INITDB_ROOT_USERNAME
+            value: "admin"
+          - name: MONGO_INITDB_ROOT_PASSWORD
+            value: "password"
+
 
 #In order to access this mango deployment we need to create the service for the same let's go back to vs code and create a service manifest file.
 
-apiVersion: vl
-kind: Service 
+apiVersion: v1
+kind: Service
 metadata:
   name: mongo-svc
 spec:
-  ports:
-  - port: 27017 
-    protocol: TCP 
-    targetPort: 27017 
-    nodePort: 32000 
+  type: NodePort
   selector:
-    app: mongo 
-type: NodePort
+    app: mongo
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017
+      nodePort: 32000
+
 
 # port forward this service  kubectl port-forward svc/mongo-svc 32000:27017 
 
-(This is typically used for accessing services running within your Kubernetes cluster via your local machine."Localhost" refers to the local computer that a user is working on. It's often identified by the IP address 127.0.0.1 and is used to access the network services that are running on the same system.)
+(This is typically used for accessing services running within your Kubernetes cluster via your local machine."Localhost" refers to the local computer that a user is working on. 
+It's often identified by the IP address 127.0.0.1 and is used to access the network services that are running on the same system.)
 
-> let's give the username and password that we gave which is admin and the password. now we connected to our mongodb let us try to create a simple database with the name db and the collection name as studios. so this is our database and this is our collection and let's try to insert a simple record add data into document and let's add just one column title "refer volumes" insert. perfect, our data is stored to mongodb now.
+Here’s what’s happening with this command:
+kubectl port-forward svc/mongo-svc 32000:27017 maps local port 32000 on your machine to port 27017 on the mongo-svc Service inside Kubernetes.
+Forwarding from 127.0.0.1:32000 -> 27017 means you can now connect to MongoDB locally at: mongodb://admin:password@localhost:32000
 
->So whatever the data we created now is stored in the container because of that the data cannot be accessed by other containers also for any reason if the container is deleted or restarted all the data written to that container will be lost. 
+> let's give the username and password that we gave which is admin and the password. now we connected to our mongodb let us try to create a simple database with the name 
+db and the collection name as studios. so this is our database and this is our collection and let's try to insert a simple record add data into document and let's add just one column title "refer volumes" insert. perfect, our data is stored to mongodb now.
+
+>So whatever the data we created now is stored in the container because of that the data cannot be accessed by other containers also for any reason if the container is
+deleted or restarted all the data written to that container will be lost. 
+
 >let us see that in action to demonstrate that.
 > let us try to kill the process which is running in the container and see if the data is preserved or lost.
 
@@ -79,7 +89,8 @@ type: NodePort
 > Get into this pod    # kubectl exec -it <pod name> --/bin/sh 
 > Now we are in the pod let us see on which process our mango-bd is running with  # ps aux (or) ps -ef 
 > As you can see our mongodb is running on the Process ID -1 to kill this process all we need to do is    # kill 1 ( 1 is PID)
-> Our mongodb container is deleted and we came back out of the container we can verify that by listing the pods. Under restarts = 1....meaning the container is restarted. (please note that we restarted the container not the pod) 
+> Our mongodb container is deleted and we came back out of the container we can verify that by listing the pods. Under restarts = 1....meaning the container is restarted. 
+(please note that we restarted the container not the pod) 
 > Now let us try to access the same data that we created earlier in mango db let's refresh here as you can see the complete database itself is deleted.
 
 # So the problem with this approach is that data is not shared across containers and when a container is deleted data associated with that container is also deleted 
@@ -231,8 +242,8 @@ spec:
 	possible values for this access modes property are;-
 	 1. read write many- this volume can be mounted as a read write by many nodes if your pods are running across different nodes this is the best option. 
 	 2. read write once- if all of your pods are running on a single node read write once option is the best, when you specify access mode as read write once                             and if your pods are running on different nodes they cannot use this volume.
-         3. read only once - You cannot write the data to this persistent volume it is just a read-only mode
-	 4. read only many -You cannot write the data to this persistent volume it is just a read-only mode
+     3. read only once - You cannot write the data to this persistent volume it is just a read-only mode,if all of your pods are running on a single node.
+	 4. read only many -You cannot write the data to this persistent volume it is just a read-only mode,if your pods are running across different nodes.
 	 5. ReadWriteOncePod-  read and write on the volume by only a specific pod.
 > kubernetes is suggesting to use local volume, so let's try to use the local volume as you can see here we should specify the type of the volume and on what path the data should get stored. Node affinity section is just to mention on which node the data should get stored when you have multiple nodes in the cluster .
 
