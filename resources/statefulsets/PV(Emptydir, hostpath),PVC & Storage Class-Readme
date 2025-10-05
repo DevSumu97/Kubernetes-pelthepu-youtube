@@ -94,8 +94,7 @@ To login to mongo po
 > To view the collections/db => show collections , show dbs
 > In pod => ps aux => kill the mongodb process => Then under k get po => you can see the container is retarted 1's and then u can check re-login to mongo db and check for the data 
 nothing will be there .
-
-
+(OR)
 
 > let us try to kill the process which is running in the container and see if the data is preserved or lost.
 > so let's list all the pods   # kubectl get pods 
@@ -109,8 +108,9 @@ nothing will be there .
 # So the problem with this approach is that data is not shared across containers and when a container is deleted data associated with that container is also deleted 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-# emptydir
-==========
+# emptydir ( emptydir is a ephemeral volume- data saved over the node in path /var/lib/kubelet/pods/<uid/pod id>/volumes/kubernetes.io~empty-dir/mongo-volumes will lost when 
+pod gets deleted or restarted)
+========================
 
 > The solution to this problem is to store the data at the pod level instead of storing at the container level to store the data at the pod level kubernetes gives us one type of 
 volume that is " emptydir"
@@ -202,59 +202,81 @@ replicas are available.
 
 > let us try to see the same from the Mongo-db compass/ gui as well let's go back to the compass and try to refresh our database as you can see the data is lost  
    The solution to this problem is to take the volume out of the pod that is where " host path"  comes into picture.
-										====================
+										
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-## host path
+## host path (host path is a ephemeral volume- data saved over the node/host path will lost when node gets deleted )
 ============
 
->  "host path" volume wants a file or directory from the host nodes file system into our pod so now all the pods on the same node can share the data and even if the pod gets deleted the data will be still available because the data is being stored on the node.
+>  "host path" volume wants a file or directory from the host nodes file system into our pod so now all the pods on the same node can share the data and even if the pod gets
+deleted the data will be still available because the data is being stored on the node.
 
-> To use the host path volume, all we need to do is replace "emptyDir" with host path and instead of just empty curly braces we should specify on which folder the data should get stored on the node. let's give it a slash data so now the data will be stored in the slash data directory on the node and the same data will be mounted in the container at the /data/db directory.
+> To use the host path volume, all we need to do is replace "emptyDir" with host path and instead of just empty curly braces we should specify on which folder the data should 
+get stored on the node. let's give it a slash data so now the data will be stored in the slash data directory on the node and the same data will be mounted in the container
+at the /data/db directory.
 
 
-apps/v1 
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name:mongo
+  name: mongo
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: mongo
-   template:
-      metadata:
+  template:
+    metadata:
       labels:
         app: mongo
-      spec:
-        containers:
-        - image: mongo
-          name: mongo
-          args: ["-dbpath", "/data/db"] 
-          env:
-           - name: MONGO_INITDB_ROOT_USERNAME
-             value: "admin"
-           - name: MONGO_INITDB_ROOT_PASSWORD
-             value "password"
-          volumeMounts:
-	  - mountPath: /data/db  => Path of the volume on container
- 	    name: mongo-volume      -------------------------
+    spec:
+      containers:
+      - name: mongo
+        image: mongo
+        args: ["--dbpath", "/data/db"]
+        env:
+          - name: MONGO_INITDB_ROOT_USERNAME
+            value: "admin"
+          - name: MONGO_INITDB_ROOT_PASSWORD
+            value: "password"
+        volumeMounts:        # Path of the volume on container where Mongo DB will write the data in this path over the container and this data will be saved on the Node under /data
+          - name: mongo-volume  		# Name of the logical Volume, Where you cant see the name of the volume inside the container or in node 
+            mountPath: /data/db
       volumes:
-      - name: mongo-volume
-	hostpath:
-          path: /data   ==> Path of the volume on node 
-			------------------------------
+        - name: mongo-volume
+          hostPath:
+            path: /data  		 # Volume on the Node where the data from the container is saved over the node under the path /data
+            
+Note : 
+     # Here Mongo Db will write its data in container under the path /data/db and the same Data will be replicated to /data path over the Node.So that even though the pod/container 
+       terminated the data will be stored safely on the Node under the path /data...But this is not suitable for multi node clusted bcoz pod might crete on the different node .
+   	 # mongo-volume is just the name you gave the volume inside the Pod spec. It’s an internal reference, not a physical disk or file you’ll see somewhere on your host.
+	 # So the name mongo-volume exists only in Kubernetes metadata, not as a folder or device on the host.
+
+---------------------
 > kubectl apply-f deployment.yaml.
 
 > Kubectl get pods
  
  let's port forward the service again... let's go back to mongo-db compass and create database db and add a document "testing" so now the document is created in the mongodb
-> Now let's go back to the terminal and try to do the same steps that we did with the "emptydir" volume that is delete the pod and see if the data is still available. ## kubectl delete pod <name of the pod> ===> it's deleted.
+> Now let's go back to the terminal and try to do the same steps that we did with the "emptydir" volume that is delete the pod and see if the data is still available.
+ ## kubectl delete pod <name of the pod> ===> it's deleted.
+
 > let's check back our pods as we are using deployment a new pod is created to maintain the actual state.
-> let's do the port forwarding again and go back to  Mango-db compass and refresh the database as you can see the data is still available so with host path volumes we can save the data even if the pod gets deleted or restarted .
+
+> let's do the port forwarding again and go back to  Mango-db compass and refresh the database as you can see the data is still available so with host path volumes we can save
+ the data even if the pod gets deleted or restarted .
+
 > but we will have the same problems that we had earlier that is sharing data and persisting data when we have multiple nodes in the same cluster.
-> let's say we have multiple pods running for an application and those are running on different nodes in this case the data that is stored in the node-1 using host path volume cannot be shared by the pod that is running in the node-2 so for any reason if the node gets deleted or restarted all the data that is stored on the node also gets deleted which again leads to the same problem that is the data loss.
->so with host path volumes we can save the data if the pod gets restarted but if the node is deleted we will have the same problems the solution to this problem is take out the storage from the node and move it to the external storage like "aws EBS" that is where "persistent volumes" comes into the picture the volumes that we discussed so far are ephemeral volumes meaning when a pod or node gets deleted the data associated with those volumes also gets deleted but these persistent volumes don't depend on any individual pod or node.That uses the persistent volume.
+
+> let's say we have multiple pods running for an application and those are running on different nodes in this case the data that is stored in the node-1 using host path volume 
+ cannot be shared by the pod that is running in the node-2 so for any reason if the node gets deleted or restarted all the data that is stored on the node also gets deleted which
+ again leads to the same problem that is the data loss.
+
+>so with host path volumes we can save the data if the pod gets restarted but if the node is deleted we will have the same problems the solution to this problem is take out
+ the storage from the node and move it to the external storage like "aws EBS" that is where "persistent volumes" comes into the picture the volumes that we discussed 
+ so far are ephemeral volumes meaning when a pod or node gets deleted the data associated with those volumes also gets deleted but these persistent volumes don't depend
+  on any individual pod or node.That uses the persistent volume.
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ## Persistant volume 
