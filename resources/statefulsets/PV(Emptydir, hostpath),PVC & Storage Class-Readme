@@ -1,18 +1,27 @@
 Kubernetes Volumes Simplified 
 =============================
 
->Containers are ephemeral in nature, which means when a container is deleted the entire data associated with that container will be lost but we have seen how to process the data even if the container gets deleted using docker volumes.
->Same applies to kubernetes when a pod is deleted all the data associated with that pod is deleted in this section we will be looking at how to persist the data even if the pod gets deleted using kubernetes volumes. 
+>Containers are ephemeral in nature, which means when a container is deleted the entire data associated with that container will be lost but we have seen how to process the 
+data even if the container gets deleted using docker volumes.
 
-# problem statement-1=> When we create the pods with deployment or replica set kubernetes make sure to maintain the given number of replicas let's say we created three replicas of our application and we have written some data to those pods if any replica or pod goes down kubernetes deployment creates another pod to maintain the actual state which is 3 in our case. but these new pods gets created with a clean slate and the data that we have written previously to the pod is deleted so in this case data is lost when the pod is deleted or restarted which leads to data loss.
+>Same applies to kubernetes when a pod is deleted all the data associated with that pod is deleted in this section we will be looking at how to persist the data even if the pod
+gets deleted using kubernetes volumes. 
 
-# problem statement 2 => when we have multiple replicas of the same application how do they share the same data. Because by default the data is stored in the container and not accessible to other pods. That means data is not shared across the pods.
+# problem statement-1=> When we create the pods with deployment or replica set kubernetes make sure to maintain the given number of replicas let's say we created three replicas
+of our application and we have written some data to those pods if any replica or pod goes down kubernetes deployment creates another pod to maintain the actual state 
+which is 3 in our case. but these new pods gets created with a clean slate and the data that we have written previously to the pod is deleted so in this case data is 
+lost when the pod is deleted or restarted which leads to data loss.
+
+# problem statement 2 => when we have multiple replicas of the same application how do they share the same data. Because by default the data is stored in the container and not
+accessible to other pods. That means data is not shared across the pods.
 
 These are the two main problems that we come across when we store the data in pods.
 
-# That's where KUBERNETES VOLUME come into picture with kubernetes volumes we can solve the above two problems that is sharing the data across the pods and persisting the data even if the pod restart or node goes down.
+# That's where KUBERNETES VOLUME come into picture with kubernetes volumes we can solve the above two problems that is sharing the data across the pods and persisting the data
+even if the pod restart or node goes down.
 
-# In simple words volume is a directory with some data in it and the data is accessible to the containers in a pod. Let us see the different types of volumes available in kubernetes with examples. for a better understanding let us start by deploying mongodb to kubernetes. 
+# In simple words volume is a directory with some data in it and the data is accessible to the containers in a pod. Let us see the different types of volumes available 
+in kubernetes with examples. for a better understanding let us start by deploying mongodb to kubernetes. 
 
  > deployment manifest as you can see we are running the image with one replica also we are passing the root username and root password as environment variables. 
 
