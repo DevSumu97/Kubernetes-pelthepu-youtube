@@ -645,7 +645,8 @@ ENTRYPOINT:
 
 Key Differences: 
 ==============
-1. Overriding: - CMD can be easily overridden by specifying a command at runtime. - ENTRYPOINT is not easily overridden; runtime arguments are appended to it. 2. 2.Purpose: - CMD is used for providing default commands or parameters. - ENTRYPOINT is used for setting the primary command of the container. 
+1. Overriding: - CMD can be easily overridden by specifying a command at runtime. - ENTRYPOINT is not easily overridden; runtime arguments are appended to it.
+2. 2.Purpose: - CMD is used for providing default commands or parameters. - ENTRYPOINT is used for setting the primary command of the container. 
 3. Combining CMD and ENTRYPOINT: - When both are used, CMD provides default arguments to ENTRYPOINT. - ENTRYPOINT ["command"] + CMD ["arg1", "arg2"] results in command arg1 arg2 being run. 
 4. Flexibility: - CMD offers more flexibility as it's easily changed at runtime. - ENTRYPOINT is more rigid, ensuring a specific command always runs. In summary, use CMD for default commands that you might want to override, and use ENTRYPOINT for containers that should always run a specific command or application, potentially with arguments provided via CMD or at runtime.
 
