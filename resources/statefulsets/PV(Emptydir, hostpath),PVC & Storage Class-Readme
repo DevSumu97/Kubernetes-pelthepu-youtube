@@ -82,6 +82,14 @@ db and the collection name as studios. so this is our database and this is our c
 >So whatever the data we created now is stored in the container because of that the data cannot be accessed by other containers also for any reason if the container is
 deleted or restarted all the data written to that container will be lost. 
 
+To login to mongo po
+> kubectl exec -it mongo-7f8b9b4c9b-hxjz7 -- bash
+> mongosh -u admin -p password
+> To create db => use school => u will be inside this db 
+> To create collection=> db.createCollection("students") => If o/p is 1 then collections created
+> To view the collections/db => show collection , show db
+
+
 >let us see that in action to demonstrate that.
 > let us try to kill the process which is running in the container and see if the data is preserved or lost.
 
