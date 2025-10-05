@@ -82,17 +82,20 @@ db and the collection name as studios. so this is our database and this is our c
 >So whatever the data we created now is stored in the container because of that the data cannot be accessed by other containers also for any reason if the container is
 deleted or restarted all the data written to that container will be lost. 
 
+>let us see that in action to demonstrate that.
+
 To login to mongo po
 > kubectl exec -it mongo-7f8b9b4c9b-hxjz7 -- bash
 > mongosh -u admin -p password
 > To create db => use school => u will be inside this db 
 > To create collection=> db.createCollection("students") => If o/p is 1 then collections created
-> To view the collections/db => show collection , show db
+> To view the collections/db => show collections , show dbs
+> In pod => ps aux => kill the mongodb process => Then under k get po => you can see the container is retarted 1's and then u can check re-login to mongo db and check for the data 
+nothing will be there .
 
 
->let us see that in action to demonstrate that.
+
 > let us try to kill the process which is running in the container and see if the data is preserved or lost.
-
 > so let's list all the pods   # kubectl get pods 
 > Get into this pod    # kubectl exec -it <pod name> --/bin/sh 
 > Now we are in the pod let us see on which process our mango-bd is running with  # ps aux (or) ps -ef 
@@ -107,42 +110,52 @@ To login to mongo po
 # emptydir
 ==========
 
-> The solution to this problem is to store the data at the pod level instead of storing at the container level to store the data at the pod level kubernetes gives us one type of volume that is " emptydir"
+> The solution to this problem is to store the data at the pod level instead of storing at the container level to store the data at the pod level kubernetes gives us one type of 
+volume that is " emptydir"
 		         ==================
-> It is created when a pod is first assigned to the node it remains active as long as the pod is running on that node now containers in the pod can share the same data as the data is stored at the pod level now even if the container is restarted the data is still available in the pod.
+> It is created when a pod is first assigned to the node it remains active as long as the pod is running on that node now containers in the pod can share the same data 
+as the data is stored at the pod level now even if the container is restarted the data is still available in the pod.
 
 >To store the data at pod level all we need to do is first declare the volume under the spec .Name as volume and the type of the volume as emptydir just curly braces that's it.
-> once the volume is declared we need to mount this volume onto the container for that under the container section volume mounts and the mount path so this is the directory in the container. 
 
-apps/v1 
+> once the volume is declared we need to mount this volume onto the container for that under the container section volume mounts and the mount path so this is the directory
+in the container. 
+
+9051b36f853da1900218c931523a1a1bb4b7bddb54bf05f260210e40307fdc3f
+
+ uid: 109bd100-c0e3-4dd4-abe8-bd656e93ad13
+  uid: 65c233d5-98cb-4013-baec-5af626293c49
+
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name:mongo
+  name: mongo
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: mongo
-   template:
-      metadata:
+  template:
+    metadata:
       labels:
         app: mongo
-      spec:
-        containers:
-        - image: mongo
-          name: mongo
-          args: ["-dbpath", "/data/db"] 
-          env:
-           - name: MONGO_INITDB_ROOT_USERNAME
-             value: "admin"
-           - name: MONGO_INITDB_ROOT_PASSWORD
-             value "password"
-          volumeMounts:
-	  - mountPath: /data/db
- 	    name: mongo-volume
+    spec:
+      containers:
+      - name: mongo
+        image: mongo
+        args: ["--dbpath", "/data/db"]
+        env:
+          - name: MONGO_INITDB_ROOT_USERNAME
+            value: "admin"
+          - name: MONGO_INITDB_ROOT_PASSWORD
+            value: "password"
+        volumeMounts:
+          - name: mongo-volume
+            mountPath: /data/db
       volumes:
-      - name: mongo-volume
-	emptyDir: {}
+        - name: mongo-volume
+          emptyDir: {}
+
 
 kubectl apply-f deployment.yml
 
@@ -156,10 +169,11 @@ kubectl apply-f deployment.yml
 > so when we store the data in empty volume the data is available as long as the pod exists even if the container restarts.  
 
 > You might be wondering where the data is being stored.  so the data of the "emptyDir" volume gets stored under the node where our pod is running.
- our pod is running in the minikube so let's login into minikube node => minikube ssh => sudo ls /var/lib/kubelet/pods 
+ our pod is running in the minikube/node01 so let's login into minikube/node01 node => minikube ssh => sudo ls /var/lib/kubelet/pods 
+
 > You can see the directories with pod ids let us try to get the id of our pod.We can get our pod id with ## kubectl get pods 
 
->  let's output this pod yaml ## kubectl get po <pod name> -o yaml ==> get the uid (pod id)
+>  let's get the output of pod yaml ## kubectl get po <pod name> -o yaml ==> get the uid (pod id)
 
 > sudo ls /var/lib/kubelet/pods/<uid/pod id>   => O/p => containers etc-hosts plugins volumes 
 
@@ -171,10 +185,13 @@ kubectl apply-f deployment.yml
 
 > but storing the data to emptydir volume is not a perfect solution we will be facing the same problems that we discussed earlier that is sharing data and persisting data even with "emptyDir" 
 
->let's say if there are multiple pods running for the same application if the data is being stored at the pod level other pods cannot share the data and also if the pod gets deleted and restarted for any reason all the data associated with that pod is also deleted which again leads to the same data loss problem .
+>let's say if there are multiple pods running for the same application if the data is being stored at the pod level other pods cannot share the data and also if the pod gets
+deleted and restarted for any reason all the data associated with that pod is also deleted which again leads to the same data loss problem .
 
 > let us try to see this one also in action now let us try to delete the pod ## kubectl delete pod <pod name> ..Now pod is deleted.
-> let's list down the pods now.As we are using deployment the old pod is deleted and the deployment is creating one replica because it always make sure the given number of replicas are available.
+> let's list down the pods now.As we are using deployment the old pod is deleted and the deployment is creating one replica because it always make sure the given number of 
+replicas are available.
+
 > let us check back if the pod is running perfect now ## Kubectl get pods ==> the pod is running now.
 
 > let us try to list down the same directory in the minikube node=> minikube ssh 
