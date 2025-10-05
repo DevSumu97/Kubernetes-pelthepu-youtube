@@ -20,7 +20,7 @@ Configmap in Pods = How to attach configmap to pod.
 1. Attach entair Config map ( entair key value pairs of configmap) as environment variable.
 here name of the Configmap is the KEY and the Data or key-value pairs inside the configmap file is VALUE
 
- # kubectl create configmap configmap-demo-1 --from-literal=wordpress_version="5.2.2"--from-literal=wordpress_user="ubuntu"
+ # kubectl create configmap configmap-1 --from-literal=wordpress_version="5.2.2" --from-literal=wordpress_user="ubuntu"
 
 vi cm-1.yml
 ---
@@ -33,7 +33,7 @@ spec:
   - name: demo-container
     image: nginx
     envFrom:
-    - configMapRef:     => Specifies entire configmap is using as a environment variable 
+    - configMapRef:     # => Specifies entire configmap is using as a environment variable 
        name: configmap-1
 ...
 
@@ -42,6 +42,16 @@ spec:
 # kubectl get cm                               => To see the ConfigMaps created in your Kubernetes cluster
 #kubectl exec -it <pod-name> -- printenv       => To see the environment variables set in a running pod
 #kubectl exec -it <pod-name> -- bash           => To go inside a running pod  
+
+....
+kubectl describe po configmap-demo-1
+O/P=>   Environment Variables from:
+          configmap-demo-1  ConfigMap  Optional: false
+
+# Optional: false Tells Kubernets “This ConfigMap must exist — otherwise, don’t start the pod.”
+# If optional: false  and the ConfigMap does not exist,❌ Pod creation fails — Kubernetes reports an error like: ConfigMap "configmap-demo-1" not found
+# If optional: true and the ConfigMap does not exist, ✅ Pod still starts, but those environment variables (or files) are simply not created.
+
 
 2. Assigning the value of one of the key-value pair present in the configmap file to the environment variable.
 
@@ -55,19 +65,27 @@ spec:
   - name: demo-container
     image: nginx
     env:
-    - name: VERSION   ==> This is KEY of the env variable
-      valueFrom:      ==> Value of the key is from
-        configMapKeyRef:  => Here i am allocting the value of key(wordpress_version)present in the configmap file(configmap-1) to the key(VERSION) 
-          name: configmap-1        => Name of the configmap file in which key value is present. 
-          key: wordpress_version   => Name of the key present in configmap file whose value you are substituting with env variable/key (VERSION) 
+    - name: VERSION                    #==> This is KEY of the env variable mentioning in the pod yaml which overrides key in config.yaml 
+      valueFrom:                       #==> Value of the key is from
+        configMapKeyRef:               #=> Here i am allocting the value of key(wordpress_version)present in the configmap named (configmap-1) to the key(VERSION) 
+          name: configmap-1            #=> Name of the configmap in which key value is present. 
+          key: wordpress_version       #=> Name of the key present in configmap file whose value you are substituting with env variable/key (VERSION) 
 ...
 
 # kubectl apply -f <file-name.yaml>            =>To apply the YAML files 
 # kubectl get pods                             => To see the pods running in your Kubernetes cluster
 # kubectl get cm                               => To see the ConfigMaps created in your Kubernetes cluster
-# kubectl exec -it <pod-name> -- printenv       => To see the environment variables set in a running pod
+# kubectl exec -it <pod-name> -- printenv       => To see the environment variables set in a running pod 
+ O/p => VERSION=5.2.2
 # kubectl exec -it <pod-name> -- bash           => To go inside a running pod
 
+....
+kubectl describe po configmap-demo-1
+O/P=>   Environment Variables from:
+          configmap-demo-1  ConfigMap  Optional: false
+
+# If Optional: false is set (or omitted, since false is the default) and the key "wordpress_version" is missing from the configmap,the pod will not start.
+# If Optional: true, then the pod will start even if the key "wordpress_version" is missing from the configmap, but env variables is unset.
 
 3. Creating configmap from the file which consists of multiple key-value pairs and add this configmap to the pod by creating a volume over it.
 
