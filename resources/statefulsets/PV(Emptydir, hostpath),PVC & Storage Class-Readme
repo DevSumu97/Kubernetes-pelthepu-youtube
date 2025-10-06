@@ -281,6 +281,10 @@ Note :
   on any individual pod or node.That uses the persistent volume.
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+1st we need to create the pvc if it's not bounded with any of the pv then u need to create the pv. Once the pvc bound with pv then assign the volume to the deploymet by 
+mentioning the pvc name.
+If we have storage class object this will automatically create the pv for us..Only thing is to we need to mention which storage class we are using while creating the pvc.
+
 ## Persistant volume 
 -------------------
 
@@ -295,6 +299,7 @@ It is an abstract component and it must take storage from the actual physical st
   > we can restrict the access to this persistent volume with access modes and let me give it as read write many.
 	possible values for this access modes property are;-
 	 1. read write many- this volume can be mounted as a read write by many nodes, if your pods are running across different nodes this is the best option. 
+							Allows the pods on the multiple nodes to read and write 
 	 2. read write once- if all of your pods are running on a single node read write once option is the best, when you specify access mode as read write once.
 						and if your pods are running on different nodes they cannot use this volume.
      3. read only once - You cannot write the data to this persistent volume it is just a read-only mode,if all of your pods are running on a single node.
@@ -302,7 +307,11 @@ It is an abstract component and it must take storage from the actual physical st
 	 5. ReadWriteOncePod-  read and write on the volume by only a specific pod.
 > kubernetes is suggesting to use local volume, so let's try to use the local volume as you can see here we should specify the type of the volume and on what path the 
  data should get stored. Node affinity section is just to mention on which node the data should get stored when you have multiple nodes in the cluster .
- 
+> When you create a PersistentVolume (PV) automatically through a StorageClass — the PV inherits its reclaim policy from that StorageClass. 
+  If the StorageClass doesn’t explicitly specify one, Kubernetes defaults to (reclaimPolicy: Delete)
+> In the below example reclaimPolicy is not mentioned so by default reclaimPolicy is Delete (The PV and underlying storage (like EBS, GCE disk) 
+  are deleted automatically When PVC is Deleted.
+
 
 PersistentVolume creation
 =============================
@@ -317,9 +326,37 @@ spec:
   accessModes:
     - ReadWriteMany 
   hostPath:
-    path: /storage/data"
+    path: /storage/data
 
-> As you can see our pv is created and the status is available meaning this pv is available for the use and the capacity is 5gb and the access mode is read write many. like this we have multiple PV's in our cluster. but how do we use this pv in the mongo pod that we have?
+# K get pv mongo-pv
+NAME       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM               STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+mongo-pv   5Gi        RWX            Retain           Bound    default/mongo-pvc                  <unset>                          21m
+
+# k describe pv mongo-pv
+
+Name:            mongo-pv
+Labels:          <none>
+Annotations:     <none>
+Finalizers:      [kubernetes.io/pv-protection]
+StorageClass:    
+Status:          Available
+Claim:           
+Reclaim Policy:  Retain
+Access Modes:    RWX
+VolumeMode:      Filesystem
+Capacity:        5Gi
+Node Affinity:   <none>
+Message:         
+Source:
+    Type:          HostPath (bare host directory volume)
+    Path:          /storage/data
+    HostPathType:  
+Events:            <none>
+
+
+
+> As you can see our pv is created and the status is available meaning this pv is available for the use and the capacity is 5gb and the access mode is read write many. 
+ like this we have multiple PV's in our cluster. but how do we use this pv in the mongo pod that we have?
 > Here the Persistant volume claim will come into picture 
 
 PersistentVolumeClaim
@@ -329,12 +366,32 @@ kind: PersistentVolumeClaim
 metadata:
   name: mongo-pvc
 spec:
-  storageClassName: demo-storage
-  accessModes:      ============
+  storageClassName: ""  # No Dynamic provisioning
+  accessModes:      
   - ReadWriteMany
   resources:
    requests:
      storage: 3Gi
+
+# k get pvc mongo-pvc
+NAME        STATUS   VOLUME     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+mongo-pvc   Bound    mongo-pv   5Gi        RWX                           <unset>                 16m
+
+# k describe pvc
+Name:          mongo-pvc
+Namespace:     default
+StorageClass:  
+Status:        Bound
+Volume:        mongo-pv
+Labels:        <none>
+Annotations:   pv.kubernetes.io/bind-completed: yes
+               pv.kubernetes.io/bound-by-controller: yes
+Finalizers:    [kubernetes.io/pvc-protection]
+Capacity:      5Gi
+Access Modes:  RWX
+VolumeMode:    Filesystem
+Used By:       <none>
+Events:        <none>
    
 > Persistent volume claim is another kubernetes resource in which we will mention how much storage our pod needs.
 > we cannot use persistent volumes directly in the pod.
@@ -351,42 +408,47 @@ the "persistent volume claim" and attaches the "persistent volume" that is bound
 
 Persistant volume claim allocation to pod 
 ========================================
-apps/v1 
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name:mongo
+  name: mongo
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: mongo
-   template:
-      metadata:
+  template:
+    metadata:
       labels:
         app: mongo
-      spec:
-        containers:
-        - image: mongo
-          name: mongo
-          args: ["-dbpath", "/data/db"] 
+    spec:
+      containers:
+        - name: mongo
+          image: mongo
+          args: ["--dbpath", "/data/db"]
           env:
-           - name: MONGO_INITDB_ROOT_USERNAME
-             value: "admin"
-           - name: MONGO_INITDB_ROOT_PASSWORD
-             value "password"
+            - name: MONGO_INITDB_ROOT_USERNAME
+              value: "admin"
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              value: "password"
           volumeMounts:
-	  - mountPath: /data/db  => Path of the volume on container
- 	    name: mongo-volume      -------------------------
+            - name: mongo-volume
+              mountPath: /data/db    		# Path of the volume on container
       volumes:
-      - name: mongo-volume
-	persistantVolumeClaim:    # Provisioning the volume via Persistat volume claim
-            claimName:mongo-pvc   ==> Name of the Persistant volume claim created prior
-		==============
+        - name: mongo-volume
+          persistentVolumeClaim:         # Provisioning the volume via Persistat volume claim( In backend pvc bound with one of the pv)
+            claimName: mongo-pvc		 # Name of the Persistant volume claim created prior
+
+Here in this deployment the data written by th Mongo Db in container under the path /data/db is stored over the hostpath type volume created by pv(mongo-pv) by mentioning the 
+persistentVolumeClaim (mongo-pvc) in deployment.yaml.
+
+
 > We can see our pvc is created and the status of this pvc is "BOUND" meaning it is already attached to a persistent volume and this shows that to which "persistent volume"
 this "persistent volume claim" is attached to and again "5gb" is the capacity and the "read write many" is the access mode.
 
 > Now if we try to list down the persistent volume the status of the persistent volume also changes from "available" to "bound" because the newly created
 persistent volume claim claimed the persistent volume.
+
 ===================================================================================================================================================================
 
 STORAGECLASS
@@ -396,7 +458,7 @@ create the PV for us which will delay our work so there must be a way for us to 
 
 >That's where storage class comes into the picture. 
 
-> "Storage class" is also another kubernetes resource in which we specify how the PV's should be created.
+> "Storage class" is also another kubernetes resource in which we specify how the PV's should be created. 
 
 > So in this case we don't need to create the "persistent volume" by ourself "storage class" will do the job for us and once the "persistent volume" is created that 
 is bound to the "persistant volume claim" after which the "persistnat volume" can be used actively by the pod.
@@ -415,11 +477,16 @@ reclaimPolicy: Delete
 
 
 > provisioner field specifies how the pv should be provisioned or how the pv should be created. (aws S3, EFS, Azure bucket, local storage)
+
 > so this is like one time job so once the storage class is created, as usual we will create the persistent volume claim and we will use this persistent volume claim in the pod.
 
->volume binding mode -volume binding mode defines how exactly a persistent volume will be created
-immediate :the pv is created immediately when the pvc is created 
-wait for first consumer - the pv is not created until the persistent volume claim is used by one of the pod 
+>Volume binding mode -volume binding mode defines how exactly a persistent volume will be created
+
+immediate : The pv is created immediately when the pvc is created  and this is the default volume binding mode.
+(The Immediate mode indicates that volume binding and dynamic provisioning occurs once the PersistentVolumeClaim is created.)
+
+wait for first consumer - The pv is not created until the persistent volume claim is used by one of the pod 
+(WaitForFirstConsumer mode which will delay the binding and provisioning of a PersistentVolume until a Pod using the PersistentVolumeClaim is created)
 
 > The Reclaim Policy defines what happens to the PersistentVolume's storage when the associated claim is deleted.
    There are several options for the Reclaim Policy
