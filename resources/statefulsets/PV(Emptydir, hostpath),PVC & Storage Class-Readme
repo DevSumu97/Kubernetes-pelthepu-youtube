@@ -508,3 +508,67 @@ is bound and the status of the persistent volume is bound to this pvc and this i
 
 > persistent volume is not namespace like storage class and it is available to the entire cluster so in short storage class and persistent volume are available across 
 the cluster whereas persistent volume claim should be available in the same name space where our pod is running 
+
+
+Storegae class -lab
+==================
+local-path is the modern replacement for hostPath. It dynamically provisions volumes using local storage on each node, but managed automatically.
+
+
+# You can install the Local Path Provisioner (from Rancher) with: 
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+
+Step1: 
+storageclass.yaml
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path
+provisioner: rancher.io/local-path
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+
+
+
+Step 2: PVC YAML (PersistentVolumeClaim)
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: demo-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: local-path
+
+🧱 Step 3: Pod YAML (that uses the PVC)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-pod
+spec:
+  containers:
+    - name: demo-container
+      image: busybox
+      command: ["/bin/sh", "-c", "echo 'Hello from local-path storage!' > /data/hello.txt && sleep 3600"]
+      volumeMounts:
+        - name: demo-storage
+          mountPath: /data
+  volumes:
+    - name: demo-storage
+      persistentVolumeClaim:
+        claimName: demo-pvc
+
+🧠  Check inside the pod
+kubectl exec -it demo-pod -- cat /data/hello.txt  =>Hello from local-path storage!
+
+🧠  Check on the Node 
+Each PVC gets its own unique folder, something like:     /opt/local-path-provisioner/pvc-<UID>/hello.txt 
+(/opt/local-path-provisioner/pvc-ce6122ca-a7b1-4624-9df5-5a9e8ca4e374_default_demo-pvc/hello.txt)
+
+
+
