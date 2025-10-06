@@ -251,6 +251,8 @@ Note :
      # Here Mongo Db will write its data in container under the path /data/db and the same Data will be replicated to /data path over the Node.So that even though the pod/container 
        terminated the data will be stored safely on the Node under the path /data...But this is not suitable for multi node clusted bcoz pod might crete on the different node .
    	 # mongo-volume is just the name you gave the volume inside the Pod spec. It’s an internal reference, not a physical disk or file you’ll see somewhere on your host.
+	 # Name of the volume is just used to map the same volume between the container and the Node. Here the Data genereated by the Application over the container is saved over the node.
+	 # Data transfer happens from container to Node.
 	 # So the name mongo-volume exists only in Kubernetes metadata, not as a folder or device on the host.
 
 ---------------------
@@ -282,19 +284,25 @@ Note :
 ## Persistant volume 
 -------------------
 
-> kubernetes offers three components to persist the data irrespective of the pod restarts or node failures. Those are persistent volumes, persistent volume claims and storage classes.
+> kubernetes offers three components to persist the data irrespective of the pod restarts or node failures.
+  Those are persistent volumes, persistent volume claims and storage classes.
 > persistent volume is a piece of storage in the cluster that has been provisioned by an administrator or dynamically provisioned using storage classes.
-> In simple words persistent volume is a kubernetes resource can be created using yaml just like any other kubernetes resource. It is an abstract/isolated component and it must take storage from the actual physical storage like "aws EBS or NFS server"  let us try to create a simple persistent volume. 
+> In simple words persistent volume is a kubernetes resource can be created using yaml just like any other kubernetes resource.
+It is an abstract component and it must take storage from the actual physical storage like "aws EBS or NFS server"  let us try to create a simple persistent volume. 
 > specifications related to the persistent volume:-
-  > so first of all let's try to give the storage capacity... so when we create a persistent volume we must specify with how much memory this persistent volume should be created ...we can give the storage capacity with capacity and this storage has 5 gigabyte.
+  > so first of all let's try to give the storage capacity... so when we create a persistent volume we must specify with how much memory this persistent volume should be created 
+  we can give the storage capacity with capacity and this storage has 5 gigabyte.
   > we can restrict the access to this persistent volume with access modes and let me give it as read write many.
 	possible values for this access modes property are;-
-	 1. read write many- this volume can be mounted as a read write by many nodes if your pods are running across different nodes this is the best option. 
-	 2. read write once- if all of your pods are running on a single node read write once option is the best, when you specify access mode as read write once                             and if your pods are running on different nodes they cannot use this volume.
+	 1. read write many- this volume can be mounted as a read write by many nodes, if your pods are running across different nodes this is the best option. 
+	 2. read write once- if all of your pods are running on a single node read write once option is the best, when you specify access mode as read write once.
+						and if your pods are running on different nodes they cannot use this volume.
      3. read only once - You cannot write the data to this persistent volume it is just a read-only mode,if all of your pods are running on a single node.
 	 4. read only many -You cannot write the data to this persistent volume it is just a read-only mode,if your pods are running across different nodes.
 	 5. ReadWriteOncePod-  read and write on the volume by only a specific pod.
-> kubernetes is suggesting to use local volume, so let's try to use the local volume as you can see here we should specify the type of the volume and on what path the data should get stored. Node affinity section is just to mention on which node the data should get stored when you have multiple nodes in the cluster .
+> kubernetes is suggesting to use local volume, so let's try to use the local volume as you can see here we should specify the type of the volume and on what path the 
+ data should get stored. Node affinity section is just to mention on which node the data should get stored when you have multiple nodes in the cluster .
+ 
 
 PersistentVolume creation
 =============================
@@ -335,9 +343,11 @@ spec:
 >  As you can see here we give the "read write many" and "3gb memory" we need for...In the "persistent volume claim". 
 > So when we create this claim, persistent volume claim will look for the appropriate persistent volume in the cluster and binds it.
 
-Now we should specify this persistent volume claim in the pod. So when we run this pod and declare a volume with this "persistent volume claim" the pod will look for the "persistent volume claim" and attaches the "persistent volume" that is bound to the "persistent volume claim".
+Now we should specify this persistent volume claim in the pod. So when we run this pod and declare a volume with this "persistent volume claim" the pod will look for 
+the "persistent volume claim" and attaches the "persistent volume" that is bound to the "persistent volume claim".
 
 > So instead of using "persistent volume" directly in the pod we will use it through the "persistent volume claim".
+> persistent volume claim is name spaced meaning persistent volume claim should be available in the same namespace that our pod is running.
 
 Persistant volume claim allocation to pod 
 ========================================
@@ -369,20 +379,28 @@ spec:
  	    name: mongo-volume      -------------------------
       volumes:
       - name: mongo-volume
-	persistantVolumeClaim:
-            claimName:mongo-pvc   ==> Path of the volume on node 
+	persistantVolumeClaim:    # Provisioning the volume via Persistat volume claim
+            claimName:mongo-pvc   ==> Name of the Persistant volume claim created prior
 		==============
-> We can see our pvc is created and the status of this pvc is "BOUND" meaning it is already attached to a persistent volume and this shows that to which "persistent volume" this "persistent volume claim" is attached to and again "5gb" is the capacity and the "read write many" is the access mode.
+> We can see our pvc is created and the status of this pvc is "BOUND" meaning it is already attached to a persistent volume and this shows that to which "persistent volume"
+this "persistent volume claim" is attached to and again "5gb" is the capacity and the "read write many" is the access mode.
 
-> Now if we try to list down the persistent volume the status of the persistent volume also changes from "available" to "bound" because the newly created persistent volume claim claimed the persistent volume.
+> Now if we try to list down the persistent volume the status of the persistent volume also changes from "available" to "bound" because the newly created
+persistent volume claim claimed the persistent volume.
+===================================================================================================================================================================
 
-> In real time the pods are created by the developers and the persistant volumes are created by the administrator. so whenever we need a PV we cannot go and ask administrator to create the PV for us which will delay our work so there must be a way for us to create the PV's dynamically whenever we need PV's .
+STORAGECLASS
+
+> In real time the pods are created by the developers and the persistant volumes are created by the administrator. so whenever we need a PV we cannot go and ask administrator to 
+create the PV for us which will delay our work so there must be a way for us to create the PV's dynamically whenever we need PV's .
+
 >That's where storage class comes into the picture. 
 
 > "Storage class" is also another kubernetes resource in which we specify how the PV's should be created.
 
-> So in this case we don't need to create the "persistent volume" by ourself "storage class" will do the job for us and once the "persistent volume" is created that is bound to the "persistant volume claim" after which the "persistnat volume" can be used actively by the pod.
-											====================
+> So in this case we don't need to create the "persistent volume" by ourself "storage class" will do the job for us and once the "persistent volume" is created that 
+is bound to the "persistant volume claim" after which the "persistnat volume" can be used actively by the pod.
+											
 
 Storage Class
 ===============
@@ -399,16 +417,27 @@ reclaimPolicy: Delete
 > provisioner field specifies how the pv should be provisioned or how the pv should be created. (aws S3, EFS, Azure bucket, local storage)
 > so this is like one time job so once the storage class is created, as usual we will create the persistent volume claim and we will use this persistent volume claim in the pod.
 
+>volume binding mode -volume binding mode defines how exactly a persistent volume will be created
+immediate :the pv is created immediately when the pvc is created 
+wait for first consumer - the pv is not created until the persistent volume claim is used by one of the pod 
+
 > The Reclaim Policy defines what happens to the PersistentVolume's storage when the associated claim is deleted.
    There are several options for the Reclaim Policy
-   1.Retain: If the Reclaim Policy is set to Retain, the PersistentVolume is not automatically deleted after the claim is released. It is up to the administrator to              manually reclaim or delete the resources associated with the PersistentVolume.
-   2.Delete: If the Reclaim Policy is set to Delete, the associated storage will be deleted automatically when the claim is released. This means that the storage will be erased and will no longer be accessible after the claim is deleted.
+   1.Retain: If the Reclaim Policy is set to Retain, the PersistentVolume is not automatically deleted after the claim is released. It is up to the administrator to 
+    manually retain or delete the resources associated with the PersistentVolume.
+    🔒 Keeps the PV and underlying data,The PV remains after PVC deletion. You must manually clean up or reuse it.
+
+   2.Delete: If the Reclaim Policy is set to Delete, the associated storage will be deleted automatically when the claim is released. This means that the storage will be erased
+    and will no longer be accessible after the claim is deleted.
+	🧹 Deletes both PV and storage,When the PVC is deleted, Kubernetes automatically deletes the PV and the underlying storage resource (like an AWS EBS volume, GCE disk, etc.).
 
 > As we specified the "storage class" name in the "persistent volume claim" the "storage class" will create the appropriate "Persistant volume" for us based on the access mode and the capacity that we specified in the persistent volume claim.
 -----------        -----------------------------------------------------------
 
-> PV will be automatically created and the status is bound because we mentioned the "volume binding mode" as "immediate" as soon as the pvc is created the pv is created and it is bound and the status of the persistent volume is bound to this pvc and this is created using the "demo storage" storage class.
+> PV will be automatically created and the status is bound because we mentioned the "volume binding mode" as "immediate" as soon as the pvc is created the pv is created and it 
+is bound and the status of the persistent volume is bound to this pvc and this is created using the "demo storage" storage class.
 
 > so to summarize today we learned what is persistent volume what is persistent volume claim and what is storage class how the persistent volume can be used by the pod and how the persistent volumes can be created using storage classes.
 
-
+> persistent volume is not namespace like storage class and it is available to the entire cluster so in short storage class and persistent volume are available across 
+the cluster whereas persistent volume claim should be available in the same name space where our pod is running 
