@@ -292,6 +292,8 @@ Now login to mongo-1 db pod/ secondary pod to check weather the data is copied o
 
 ===================================================================
 
+Howw to Initiate Replication?
+
 1. rs.initiate()
 
 This is the MongoDB shell command to initialize a replica set.
