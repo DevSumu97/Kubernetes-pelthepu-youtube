@@ -88,7 +88,7 @@ spec:
         name: mongo-volume
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: demo-storage
+        storageClassName: demo-storage 
         resources:
           requests:
             storage: 1Gi
@@ -244,6 +244,9 @@ reclaimPolicy: Delete
 # k get sc local-path 
 NAME         PROVISIONER             RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
 local-path   rancher.io/local-path   Delete          WaitForFirstConsumer   false                  2m44s
+
+Storage class enable the automatic creation of PVs based on the requirements specified in the PVC, eleminating the need for manual PV creation by administrator
+
 ========================================================
 (Storage class  is not working so create the pv maually)
 =======================================================
