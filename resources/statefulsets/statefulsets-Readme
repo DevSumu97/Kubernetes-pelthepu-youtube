@@ -251,8 +251,8 @@ rs.initiate(
 
     _id: "rs0",     => Name of the replica set mentioned in the statefulset
     members: [
-        { _id: 0, host: "mongo-0.mongo.default.svc.cluster.local:27017"},  => DNS of the mongo-0 pod => <pod name>.<service name>.<namespace> 
-        { _id: 1, host: "mongo-1.mongo.default.svc.cluster.local:27017"},                                    mongo-0.mongo.default
+        { _id: 0, host: "mongo-0.mongo.default.svc.cluster.local:27017"},  # => DNS of the mongo-0 pod => <pod name>.<service name>.<namespace> 
+        { _id: 1, host: "mongo-1.mongo.default.svc.cluster.local:27017"},                                  #  mongo-0.mongo.default
         { _id: 2, host: "mongo-2.mongo.default.svc.cluster.local:27017"}
        ]
 
@@ -283,14 +283,203 @@ Now login to mongo-1 db pod/ secondary pod to check weather the data is copied o
 
 # db.todos.find()  => Try to list the collection will get the error 
 
-> To enable read execute the command rs.slaveok()
+> To enable read execute the command rs.slaveOk()
 
 # db.todos.find()
 
 > As you can see the data is replicated to the slave-1 from the primary node and this data transfer took place with the help of headless service.
 >  so this is how Pods in the stateful state communicate with each other for the data replication.
 
+===================================================================
 
+1. rs.initiate()
+
+This is the MongoDB shell command to initialize a replica set.
+
+Must be run once, typically on the first pod (mongo-0).
+
+2. Replica Set Configuration Object
+{
+  _id: "rs0",    // Must match replSetName in mongod.conf
+  members: [
+    { _id: 0, host: "mongo-0.mongo.default.svc.cluster.local:27017" },
+    { _id: 1, host: "mongo-1.mongo.default.svc.cluster.local:27017" },
+    { _id: 2, host: "mongo-2.mongo.default.svc.cluster.local:27017" }
+  ]
+}
+
+Details
+
+_id: "rs0" → The replica set name, must match replication.replSetName in your mongodb.conf.
+
+members → Array of members in the replica set.
+
+_id → Unique identifier of each member in the set (0, 1, 2…).
+
+host → Full DNS name of each pod, important for Kubernetes:
+
+<pod-name>.<headless-service-name>.<namespace>.svc.cluster.local:<port>
+
+
+In your example:
+
+mongo-0.mongo.default.svc.cluster.local:27017
+
+mongo-1.mongo.default.svc.cluster.local:27017
+
+mongo-2.mongo.default.svc.cluster.local:27017
+
+This ensures stable networking between pods in the replica set.
+
+3. How to Run
+
+Connect to the first MongoDB pod (mongo-0):
+
+kubectl exec -it mongo-0 -- mongo -u admin1 -p <password> --authenticationDatabase admin
+
+
+Run the initiation command:
+
+rs.initiate(
+  {
+    _id: "rs0",
+    members: [
+      { _id: 0, host: "mongo-0.mongo.default.svc.cluster.local:27017" },
+      { _id: 1, host: "mongo-1.mongo.default.svc.cluster.local:27017" },
+      { _id: 2, host: "mongo-2.mongo.default.svc.cluster.local:27017" }
+    ]
+  }
+)
+
+
+Check the status:
+
+rs.status()
+
+
+You should see all 3 members, with mongo-0 as PRIMARY and the others as SECONDARY.
+
+Output
+=======
+
+rs.status()
+{
+        "set" : "rs0",
+        "date" : ISODate("2025-10-09T12:11:57.041Z"),
+        "myState" : 1,
+        "term" : NumberLong(1),
+        "syncingTo" : "",
+        "syncSourceHost" : "",
+        "syncSourceId" : -1,
+        "heartbeatIntervalMillis" : NumberLong(2000),
+        "optimes" : {
+                "lastCommittedOpTime" : {
+                        "ts" : Timestamp(1760011902, 5),
+                        "t" : NumberLong(1)
+                },
+                "readConcernMajorityOpTime" : {
+                        "ts" : Timestamp(1760011902, 5),
+                        "t" : NumberLong(1)
+                },
+                "appliedOpTime" : {
+                        "ts" : Timestamp(1760011902, 5),
+                        "t" : NumberLong(1)
+                },
+                "durableOpTime" : {
+                        "ts" : Timestamp(1760011902, 5),
+                        "t" : NumberLong(1)
+                }
+        },
+        "lastStableCheckpointTimestamp" : Timestamp(1760011902, 1),
+        "members" : [
+                {
+                        "_id" : 0,
+                        "name" : "mongo-0.mongo.default.svc.cluster.local:27017",
+                        "health" : 1,
+                        "state" : 1,
+                        "stateStr" : "PRIMARY",
+                        "uptime" : 1243,
+                        "optime" : {
+                                "ts" : Timestamp(1760011902, 5),
+                                "t" : NumberLong(1)
+                        },
+                        "optimeDate" : ISODate("2025-10-09T12:11:42Z"),
+                        "syncingTo" : "",
+                        "syncSourceHost" : "",
+                        "syncSourceId" : -1,
+                        "infoMessage" : "could not find member to sync from",
+                        "electionTime" : Timestamp(1760011901, 1),
+                        "electionDate" : ISODate("2025-10-09T12:11:41Z"),
+                        "configVersion" : 1,
+                        "self" : true,
+                        "lastHeartbeatMessage" : ""
+                },
+                {
+                        "_id" : 1,
+                        "name" : "mongo-1.mongo.default.svc.cluster.local:27017",
+                        "health" : 1,
+                        "state" : 2,
+                        "stateStr" : "SECONDARY",
+                        "uptime" : 27,
+                        "optime" : {
+                                "ts" : Timestamp(1760011902, 5),
+                                "t" : NumberLong(1)
+                        },
+                        "optimeDurable" : {
+                                "ts" : Timestamp(1760011902, 5),
+                                "t" : NumberLong(1)
+                        },
+                        "optimeDate" : ISODate("2025-10-09T12:11:42Z"),
+                        "optimeDurableDate" : ISODate("2025-10-09T12:11:42Z"),
+                        "lastHeartbeat" : ISODate("2025-10-09T12:11:55.205Z"),
+                        "lastHeartbeatRecv" : ISODate("2025-10-09T12:11:55.904Z"),
+                        "pingMs" : NumberLong(0),
+                        "lastHeartbeatMessage" : "",
+                        "syncingTo" : "mongo-2.mongo.default.svc.cluster.local:27017",
+                        "syncSourceHost" : "mongo-2.mongo.default.svc.cluster.local:27017",
+                        "syncSourceId" : 2,
+                        "infoMessage" : "",
+                        "configVersion" : 1
+                },
+                {
+                        "_id" : 2,
+                        "name" : "mongo-2.mongo.default.svc.cluster.local:27017",
+                        "health" : 1,
+                        "state" : 2,
+                        "stateStr" : "SECONDARY",
+                        "uptime" : 27,
+                        "optime" : {
+                                "ts" : Timestamp(1760011902, 5),
+                                "t" : NumberLong(1)
+                        },
+                        "optimeDurable" : {
+                                "ts" : Timestamp(1760011902, 5),
+                                "t" : NumberLong(1)
+                        },
+                        "optimeDate" : ISODate("2025-10-09T12:11:42Z"),
+                        "optimeDurableDate" : ISODate("2025-10-09T12:11:42Z"),
+                        "lastHeartbeat" : ISODate("2025-10-09T12:11:55.204Z"),
+                        "lastHeartbeatRecv" : ISODate("2025-10-09T12:11:55.366Z"),
+                        "pingMs" : NumberLong(0),
+                        "lastHeartbeatMessage" : "",
+                        "syncingTo" : "mongo-0.mongo.default.svc.cluster.local:27017",
+                        "syncSourceHost" : "mongo-0.mongo.default.svc.cluster.local:27017",
+                        "syncSourceId" : 0,
+                        "infoMessage" : "",
+                        "configVersion" : 1
+                }
+        ],
+        "ok" : 1,
+        "operationTime" : Timestamp(1760011902, 5),
+        "$clusterTime" : {
+                "clusterTime" : Timestamp(1760011902, 5),
+                "signature" : {
+                        "hash" : BinData(0,"AAAAAAAAAAAAAAAAAAAAAAAAAAA="),
+                        "keyId" : NumberLong(0)
+                }
+        }
+}
+rs0:PRIMARY> 
 
 
 
