@@ -92,20 +92,21 @@ spec:
         resources:
           requests:
             storage: 1Gi
-Note- Stateful-set.yaml given in the end without any commants 
+            
+Note- Stateful-set.yaml given in the end without any comments 
 
 
-k describe sts mongo 
+ ➜  k describe sts
 Name:               mongo
 Namespace:          default
 CreationTimestamp:  Thu, 09 Oct 2025 11:40:49 +0000
 Selector:           app=mongo
 Labels:             <none>
 Annotations:        <none>
-Replicas:           3 desired | 1 total
+Replicas:           3 desired | 3 total
 Update Strategy:    RollingUpdate
   Partition:        0
-Pods Status:        0 Running / 1 Waiting / 0 Succeeded / 0 Failed
+Pods Status:        3 Running / 0 Waiting / 0 Succeeded / 0 Failed
 Pod Template:
   Labels:  app=mongo
   Containers:
@@ -141,63 +142,21 @@ Volume Claims:
   Capacity:      1Gi
   Access Modes:  [ReadWriteOnce]
 Events:
-  Type    Reason            Age   From                    Message
-  ----    ------            ----  ----                    -------
-  Normal  SuccessfulCreate  88s   statefulset-controller  create Claim mongo-volume-mongo-0 Pod mongo-0 in StatefulSet mongo success
-  Normal  SuccessfulCreate  88s   statefulset-controller  create Pod mongo-0 in StatefulSet mongo successful
+  Type    Reason            Age    From                    Message
+  ----    ------            ----   ----                    -------
+  Normal  SuccessfulCreate  17m    statefulset-controller  create Claim mongo-volume-mongo-0 Pod mongo-0 in StatefulSet mongo success
+  Normal  SuccessfulCreate  17m    statefulset-controller  create Pod mongo-0 in StatefulSet mongo successful
+  Normal  SuccessfulCreate  6m25s  statefulset-controller  create Claim mongo-volume-mongo-1 Pod mongo-1 in StatefulSet mongo success
+  Normal  SuccessfulCreate  6m25s  statefulset-controller  create Pod mongo-1 in StatefulSet mongo successful
+  Normal  SuccessfulCreate  6m15s  statefulset-controller  create Claim mongo-volume-mongo-2 Pod mongo-2 in StatefulSet mongo success
+  Normal  SuccessfulCreate  6m14s  statefulset-controller  create Pod mongo-2 in StatefulSet mongo successful
 
- 
- ➜  k describe sts mongo 
-Name:               mongo
-Namespace:          default
-CreationTimestamp:  Thu, 09 Oct 2025 11:40:49 +0000
-Selector:           app=mongo
-Labels:             <none>
-Annotations:        <none>
-Replicas:           3 desired | 1 total
-Update Strategy:    RollingUpdate
-  Partition:        0
-Pods Status:        0 Running / 1 Waiting / 0 Succeeded / 0 Failed
-Pod Template:
-  Labels:  app=mongo
-  Containers:
-   mongo:
-    Image:      mongo:4.0.8
-    Port:       <none>
-    Host Port:  <none>
-    Command:
-      mongod
-      --bind_ip_all
-      --config=/etc/mongo/mongod.conf
-    Liveness:   exec [mongo --eval db.adminCommand('ping')] delay=10s timeout=5s period=10s #success=1 #failure=3
-    Readiness:  exec [mongo --eval db.adminCommand('ping')] delay=5s timeout=5s period=10s #success=1 #failure=3
-    Startup:    exec [mongo --eval db.adminCommand('ping')] delay=5s timeout=5s period=10s #success=1 #failure=3
-    Environment:
-      MONGO_INITDB_ROOT_USERNAME:  <set to the key 'username' of config map 'mongodb-config'>  Optional: false
-      MONGO_INITDB_ROOT_PASSWORD:  <set to the key 'password' in secret 'mongodb-secret'>      Optional: false
-    Mounts:
-      /data/db from mongo-volume (rw)
-      /etc/mongo from mongodb-config (rw)
-  Volumes:
-   mongodb-config:
-    Type:          ConfigMap (a volume populated by a ConfigMap)
-    Name:          mongodb-config
-    Optional:      false
-  Node-Selectors:  <none>
-  Tolerations:     <none>
-Volume Claims:
-  Name:          mongo-volume
-  StorageClass:  demo-storage
-  Labels:        <none>
-  Annotations:   <none>
-  Capacity:      1Gi
-  Access Modes:  [ReadWriteOnce]
-Events:
-  Type    Reason            Age   From                    Message
-  ----    ------            ----  ----                    -------
-  Normal  SuccessfulCreate  2m1s  statefulset-controller  create Claim mongo-volume-mongo-0 Pod mongo-0 in StatefulSet mongo success
-  Normal  SuccessfulCreate  2m1s  statefulset-controller  create Pod mongo-0 in StatefulSet mongo successful
 
+->k get pvc ( created by volumeClaimTemplates of statefulset)
+NAME                   STATUS   VOLUME       CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+mongo-volume-mongo-0   Bound    mongo-pv-0   1Gi        RWO            demo-storage   <unset>                 17m
+mongo-volume-mongo-1   Bound    mongo-pv-1   1Gi        RWO            demo-storage   <unset>                 6m53s
+mongo-volume-mongo-2   Bound    mongo-pv-2   1Gi        RWO            demo-storage   <unset>                 6m43s
 ===========================================
 # mongodb-config.yaml (Uses the ConfigMap-mounted config for replication and dbPath)
 
@@ -286,7 +245,7 @@ reclaimPolicy: Delete
 NAME         PROVISIONER             RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
 local-path   rancher.io/local-path   Delete          WaitForFirstConsumer   false                  2m44s
 ========================================================
-(Storage class not working so create the pv maually)
+(Storage class  is not working so create the pv maually)
 =======================================================
 pv.yaml
 
