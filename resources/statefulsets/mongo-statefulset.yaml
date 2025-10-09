@@ -80,7 +80,7 @@ spec:
                 # This is often done because MongoDB expects the file to be named mongod.conf, not mongodb.conf.
           #configMap:                     #Then every key in that ConfigMap becomes a file in the volume (If we mention the name of the configmap directly)
           # name: mongodb-config          # The container would get: (etc/mongo/username→ contains "admin1" & /etc/mongo/mongodb.conf → contains your YAML config)
-  volumeClaimTemplates:
+  volumeClaimTemplates:           # Creates a dedicated Persistant volume for each pod's
     - metadata:
         name: mongo-volume
       spec:
@@ -106,8 +106,8 @@ data:                      # The data section holds key-value pairs. You have tw
     replication:
         replSetName: "rs0"     # replication.replSetName — the name of your replica set (used when you’re setting up MongoDB replication)
 
-      ========================================
-      mongo-secret.yaml
+========================================
+# mongo-secret.yaml
       
 apiVersion: v1
 kind: Secret
@@ -117,6 +117,31 @@ immutable: false
 type: Opaque
 data:
   password: cGFzc3dvcmQxMjM=  
+==============================================
+# StorageClass.yaml
+  apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: demo-storage
+provisioner: k8s.io/minikube-hostpath  ( Minikube will Not work so use the below yaml) 
+volumeBindingMode: Immediate
+reclaimPolicy: Delete
 
+
+# StorageClass.yaml
+
+# You can install the Local Path Provisioner (from Rancher) with: 
+kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+
+Step1: 
+storageclass.yaml
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: demo-storage
+provisioner: rancher.io/local-path
+volumeBindingMode: Immediate
+reclaimPolicy: Delete
 
             
