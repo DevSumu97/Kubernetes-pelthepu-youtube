@@ -36,3 +36,129 @@ spec:
       port: 5978
 # This allows outbound traffic (egress) from the Pods labeled role=db in default namespace to any IP address within 10.0.0.0/24, only on TCP port 5978.
 
+
+
+Behavior of to and from selectors
+
+#This policy contains a single from element allowing connections from Pods with the label role=client in namespaces with the label user=alice. 
+ ...
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          user: alice
+      podSelector:
+        matchLabels:
+          role: client
+  ...
+
+The below contains two elements in the from array, and allows connections from Pods in the local Namespace with the label role=client, 
+ or from any Pod in any namespace with the label user=alice.
+
+ ...
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          user: alice
+    - podSelector:
+        matchLabels:
+          role: client
+  ...
+
+ Default policies
+ ==============
+By default, if no policies exist in a namespace, then all ingress and egress traffic is allowed to and from pods in that namespace
+
+Default deny all ingress traffic You can create a "default" ingress isolation policy for a namespace by creating a NetworkPolicy that selects all pods but does not allow any 
+ingress traffic to those pods.
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  ----
+  
+Allow all ingress traffic
+=>If you want to allow all incoming connections to all pods in a namespace, you can create a policy that explicitly allows that.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-ingress
+spec:
+  podSelector: {}
+  ingress:
+  - {}
+  policyTypes:
+  - Ingress
+
+Default deny all egress traffic
+You can create a "default" egress isolation policy for a namespace by creating a NetworkPolicy that selects all pods but does not allow any egress traffic from those pods.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  
+Allow all egress traffic
+If you want to allow all connections from all pods in a namespace, you can create a policy that explicitly allows all outgoing connections from pods in that namespace.
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-egress
+spec:
+  podSelector: {}
+  egress:
+  - {}
+  policyTypes:
+  - Egress
+
+
+Default deny all ingress and all egress traffic
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+
+
+Targeting multiple namespaces by label
+
+kubectl label namespace frontend namespace=frontend
+kubectl label namespace backend namespace=backend
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: egress-namespaces
+spec:
+  podSelector:
+    matchLabels:
+      app: myapp
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchExpressions:
+        - key: namespace
+          operator: In
+          values: ["frontend", "backend"]
