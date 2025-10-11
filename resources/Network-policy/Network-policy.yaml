@@ -1,1 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: test-network-policy
+  namespace: default
+spec:
+  podSelector:  # This tells Kubernetes which Pods this NetworkPolicy applies to — in this case, all Pods in the same namespace that have the label: role: db
+    matchLabels:
+      role: db
+  policyTypes:  # The policyTypes field tells Kubernetes which directions of traffic the NetworkPolicy will control for the selected Pods.
+  - Ingress     # You explicitly define Ingress rules (who can talk to the Pod). This policy will restrict and control both incoming and outgoing traffic for the Pods it selects.
+  - Egress      # You explicitly define Egress rules (where the Pod can talk to).
+  ingress:
+  - from:   # from: defines the sources (allowed senders) of incoming traffic for the Pods (the ones under podSelector ie, pods with label role:db in default namespace).
+    - ipBlock:   #allows incoming traffic from IPs in that range, except those inside the excluded subnet.
+        cidr: 172.17.0.0/16  #Host range: 172.17.0.1 → 172.17.255.254 # Total usable IPs: ≈ 65,534
+        except:
+        - 172.17.1.0/24 # It’s a smaller subnet inside the bigger 172.17.0.0/16 network.# Host range: 172.17.1.1 → 172.17.1.254 #Total usable IPs: 254
+    - namespaceSelector: # It allows connections from All Pods ir-respective of labels from the Namespace with the label "project: myproject", As we have "-" consider it as seperate rule
+        matchLabels:
+          project: myproject
+    - podSelector:   # It allows connections from Pods in the Defaul Namespace with the label role=frontend, As we have "-" consider it as a seperate ingress rule
+        matchLabels:
+          role: frontend
+    ports:
+    - protocol: TCP
+      port: 6379 # Only accepts the traffic from port 6379
+#It contains three elements in the from array, and allows connections from Pods in the default Namespace with the label role: frontend,or from any Pods in namespace with the 
+#label "project: myproject" ......The dash (-) means this is a separate ingress rule entry.
+  egress:
+  - to:          # Specifies where these Pods are allowed to send traffic.
+    - ipBlock:   # Means traffic can go to external IP ranges, not just inside the cluster.
+        cidr: 10.0.0.0/24  # 10.0.0.1 → 10.0.0.254 (254 usable)
+    ports:
+    - protocol: TCP
+      port: 5978
+# This allows outbound traffic (egress) from the Pods labeled role=db in default namespace to any IP address within 10.0.0.0/24, only on TCP port 5978.
 
