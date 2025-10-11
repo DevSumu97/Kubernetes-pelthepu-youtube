@@ -1,0 +1,73 @@
+🧠 What Are Annotations in Kubernetes?
+
+👉 Annotations are key-value pairs attached to Kubernetes objects (like Pods, Deployments, Services, etc.).
+They are used to store non-identifying, metadata information — things that tools or automation systems might need, but that Kubernetes itself doesn’t use for scheduling or selecting resources.
+
+⚙️ Syntax Example
+
+Here’s a sample Pod manifest with annotations:
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-pod
+  labels:
+    app: myapp
+  annotations:
+    description: "This pod runs the demo application"
+    createdBy: "Sumanth"
+    checksum/config: "f4a9f1d7c8e1"
+spec:
+  containers:
+    - name: demo-container
+      image: nginx
+
+🧩 Annotations vs Labels
+Feature	Labels	Annotations
+Purpose	Used for grouping, selecting, and filtering objects	Used for attaching non-identifying metadata
+Used by	Kubernetes core system (selectors, matchLabels)	Humans, tools, or controllers (e.g., Helm, ArgoCD, CI/CD pipelines)
+Queryable (via selector)?	✅ Yes (kubectl get pods -l app=myapp)	❌ No
+Example	app: nginx	description: "Managed by Helm"
+💬 When to Use Annotations
+
+Use annotations when you want to store:
+
+Tool-specific info (e.g., Helm release name)
+
+Version or checksum of configuration
+
+Contact info for maintainers
+
+URLs, docs, or change history
+
+Debug or audit metadata
+
+Sidecar injector data (used by Istio, Linkerd, etc.)
+
+🧰 Common Real-World Examples
+🔹 Helm
+annotations:
+  meta.helm.sh/release-name: "myapp"
+  meta.helm.sh/release-namespace: "default"
+
+🔹 ArgoCD
+annotations:
+  argocd.argoproj.io/sync-wave: "1"
+
+🔹 Istio Sidecar Injection
+annotations:
+  sidecar.istio.io/inject: "true"
+
+🔹 Documentation Example
+annotations:
+  kubernetes.io/description: "Backend API service for user authentication"
+
+🧠 Key Points to Remember
+
+✅ Annotations = extra info for humans or tools
+
+❌ Not used by Kubernetes for grouping or selection
+
+📦 Stored as metadata in the object’s metadata.annotations field
+
+💾 No size limit per annotation, but total annotations per object should stay under 256 KB
