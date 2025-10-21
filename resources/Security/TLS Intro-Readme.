@@ -278,3 +278,87 @@ The same with kube controller manager It is again a system component, so its nam
 and finally kube proxy.
 
 So far we have created CA certificates.Then all of the client certificates including the admin user,scheduler,controller manager and kube proxy.
+
+Similarly, in Kubernetes, for these various components to verify each other, they all need a copy of the CA's root certificate.
+So whenever you configure a server or a client with certificates, you will need to specify the CA root certificate as well.
+
+Etcd server can be deployed as a cluster across multiple servers as in a high availability environment.In that case, to secure communication between the different members in the cluster, we must generate additional peer certificates.
+
+🔐 What is an etcd peer certificate?
+
+In an etcd cluster, each etcd node communicates securely with other etcd nodes over mutual TLS (mTLS).
+For this, each node has two kinds of certificates:
+
+Type	Purpose	Example File
+Server certificate	Used when serving requests from etcd clients (like the Kubernetes API server)	server.crt
+Peer certificate	Used when communicating with other etcd members in the cluster	peer.crt
+
+The peer certificate authenticates the node’s identity to other peers.
+
+🧩 How peer certificates work
+
+In an etcd cluster with multiple nodes:
+Each node has a peer certificate and a peer key.
+Each node verifies other nodes’ peer certificates using the CA certificate.
+The certificates are mutually trusted, ensuring only valid cluster members can connect.
+Communication: etcd1 <──(mTLS)──> etcd2 <──(mTLS)──> etcd3
+Each uses peer.crt and peer.key for this communication.
+
+Once the certificates are generated, specify them in etcd server.config file 
+There are key and cert file options where you specify the etcd server keys.
+There are other options available for specifying the peer certificates.
+And finally, as we discussed earlier, it requires the CA root certificate to verify that the clients connecting to the etcd server are valid.
+
+Creation of API Server Certificate 
+===================================
+In the certificate signing request you specify the name kube API server.
+But how do you specify all the alternate names?
+For that you must create an open SSL config file.
+Create an OpenSSL conf file and specify the alternate names in the Altnames section of the file.
+Include all the DNS names of the API server goes by as well as the IP address.
+Pass this config file as an option while generating the certificate signing request.
+Finally, sign the certificate using the CA certificate and key.
+You then have the API server certificate.
+
+ 👏 —API Server certificate creation using OpenSSL, along with a custom configuration file (openssl.cnf) to include Subject Alternative Names (SANs).
+
+🧩 Step 1: Create the Certificate Signing Request (CSR)
+openssl req -new -key apiserver.key -subj "/CN=kube-apiserver" -out apiserver.csr -config openssl.cnf
+
+📄 Step 2: openssl.cnf — Configuration File
+
+[req]
+req_extensions = v3_req
+distinguished_name = req_distinguished_name
+
+[v3_req]
+basicConstraints = CA:FALSE
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = kubernetes
+DNS.2 = kubernetes.default
+DNS.3 = kubernetes.default.svc
+DNS.4 = kubernetes.default.svc.cluster.local
+IP.1 = 10.96.0.1
+IP.2 = 172.17.0.87
+
+Breakdown:
+req_extensions = v3_req → Tells OpenSSL to use the [v3_req] section when creating the CSR.
+subjectAltName = @alt_names → Adds SANs (used to verify hostnames or IPs).
+DNS.* entries → Common service names the API server can be accessed with.
+IP.* entries → The cluster’s API server IPs (for example, 10.96.0.1 is the default Kubernetes service IP).
+Without these SANs, Kubernetes clients (like kubectl) would show TLS verification errors.
+
+🔏 Step 3: Sign the CSR with the Kubernetes CA
+openssl x509 -req -in apiserver.csr -CA ca.crt -CAkey ca.key \
+-CAcreateserial -out apiserver.crt -extensions v3_req \
+-extfile openssl.cnf -days 1000
+
+Explanation:
+-req → Tells OpenSSL you’re signing a CSR.
+-CA ca.crt -CAkey ca.key → Signs using your Kubernetes cluster’s CA.
+-extensions v3_req -extfile openssl.cnf → Ensures SANs and other extensions are included.
+-days 1000 → Certificate validity period (1000 days here).
+Output: apiserver.crt — your signed certificate.
