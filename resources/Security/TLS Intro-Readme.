@@ -186,7 +186,9 @@ Again, that requires a certificate and key pair we call it kubelet.cert and kube
 Who are the clients who access these services? 
 ============================================
 
-The clients who access the kube-apiserver are us, the administrators through kubectl rest API. 
+The clients who access the kube-apiserver are us,
+
+The administrators through kubectl rest API. 
 The admin user requires a client certificate and key pair to authenticate to the kube-API server. 
 We will call it admin.crt, and admin.key.
 
