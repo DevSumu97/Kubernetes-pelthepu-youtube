@@ -271,3 +271,10 @@ CN=kube-admin → The Common Name — identifies the user (in Kubernetes, it rep
 OU=system:masters → The Organizational Unit — determines the user group.
 In Kubernetes, users in the system:masters group have cluster-admin privileges.
 -out admin.csr → Writes the output CSR to the file admin.csr.
+
+We follow the same process to generate client certificates for all other components that access the kube API server.
+The kube scheduler is a system component part of the Kubernetes control plane, so its name must be prefixed with the keyword system.SYSTEM:KUBE_SCHEDULER
+The same with kube controller manager It is again a system component, so its name must be prefixed with the keyword system-> SYSTEM:KUBE_CONTROLLER MANAGER
+and finally kube proxy.
+
+So far we have created CA certificates.Then all of the client certificates including the admin user,scheduler,controller manager and kube proxy.
