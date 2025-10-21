@@ -362,3 +362,29 @@ Explanation:
 -extensions v3_req -extfile openssl.cnf → Ensures SANs and other extensions are included.
 -days 1000 → Certificate validity period (1000 days here).
 Output: apiserver.crt — your signed certificate.
+
+Server Certificate for  kubelet
+==============================
+The Kubelet server is an https API server that runs on each node responsible for managing the node.
+That's who the API server talks to to monitor the node, as well as send information regarding what pods to schedule on this node.
+As such, you need a key certificate pair for each node in the cluster.
+
+Now what do you name these certificates?
+Are they all going to be named kubelets? No, they will be named after their nodes. Node-0,Node-1 and Node-2.
+Once the certificates are created, use them in the kubelet config file.
+As always, you specify the root certificate and then provide the Kubelet node certificates.
+You must do this for each node in the cluster.
+
+Client Certificate for kubelet
+==============================
+We also talked about a set of client certificates that will be used by the Kubelet to communicate with the kube API server.
+These are used by the Kubelet to authenticate themself with the kube API server. They need to be generated as well.
+
+What do you name these certificates?
+The API server needs to know which node is authenticating and give it the right set of permissions.
+So it requires the nodes to have the right names in the right format.
+Since the nodes are system components the format starts with the system keyword followed by node and then the node name.=> System:Node:Node01
+
+And how would the API server give it the right set of permissions?
+Remember we specified a group name for the admin user. So the admin user gets administrative privileges.
+Similarly, the nodes must be added to a group named system nodes.
