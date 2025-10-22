@@ -140,7 +140,11 @@ So the client must generate a pair of keys and get a signed certificate from a v
 The client then sends the certificate to the server for it to verify that the client is who they say they are.
 This whole infrastructure, including the CA, the servers, the people, and the process of generating, distributing and maintaining digital certificates is known as public key infrastructure or PKI. 
 
+
+
+*************************************************************************************************************************************************
 TLS in Kubernetes 
+=====================
 There are three types of certificates
 Server certificates configured on the servers.
 Root certificate configured on the CA servers.
@@ -206,7 +210,8 @@ We will call them kubeproxy.crt, and kubeproxy.key.
 
 We need a certificate authority to sign all these certificates. Kubernetes requires you to have at least one certificate authority for your cluster. The CA, has its own pair of certificate and key.We will call it CA.crt and CA.key.
 
-======================================
+Certificate authority - Private key, CSR & root certificte creation
+==================================================================
 
 First we create a private key using the OpenSSL command =>
 
@@ -241,6 +246,7 @@ Great. Let's now look at generating the client certificates.
 ==========================================================
 
 We start with the admin user.
+------------------------
 
 1. Generate a Private Key for the Admin User => openssl genrsa -out admin.key 2048
 
@@ -281,6 +287,7 @@ So far we have created CA certificates.Then all of the client certificates inclu
 
 Similarly, in Kubernetes, for these various components to verify each other, they all need a copy of the CA's root certificate.
 So whenever you configure a server or a client with certificates, you will need to specify the CA root certificate as well.
+
 
 Etcd server can be deployed as a cluster across multiple servers as in a high availability environment.In that case, to secure communication between the different members in the cluster, we must generate additional peer certificates.
 
@@ -388,3 +395,12 @@ Since the nodes are system components the format starts with the system keyword 
 And how would the API server give it the right set of permissions?
 Remember we specified a group name for the admin user. So the admin user gets administrative privileges.
 Similarly, the nodes must be added to a group named system nodes.
+
+Commnd to view the Certificate details 
+=====================================
+openssl x509 -in certificate.crt -text -noout
+
+Explanation:
+-in certificate.crt → input certificate file
+-text → show the human-readable content
+-noout → hide the base64-encoded data
