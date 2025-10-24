@@ -193,13 +193,41 @@ To view the current file being used, run the kube control config view command.
 
 => kubectl config view 
 
+apiVersion: v1
+kind: Config
+
+clusters:
+- name: my-cluster
+  cluster:
+    certificate-authority: /etc/kubernetes/pki/ca.crt   # or certificate-authority-data: <base64-encoded CA>
+    server: https://192.168.49.2:8443                   # API server endpoint
+
+users:
+- name: admin
+  user:
+    client-certificate: /etc/kubernetes/pki/admin.crt
+    client-key: /etc/kubernetes/pki/admin.key
+
+contexts:
+- name: my-context
+  context:
+    cluster: my-cluster
+    user: admin
+    namespace: default
+
+current-context: my-context
+
+
 As we discussed earlier, if you do not specify which kubeconfig file to use, it ends up using the default file located in the folder dot kube
 (.kube -hidden directory) in the user's home directory.
  Alternatively, you can specify a kubeconfig file by passing the kube config option in the command line like this. 
- ---
+------------------------------------------------------------------------------------------------------------
+kubectl config use-context research --kubeconfig /root/my-kube-config
  
- We will move our custom config to the home directory, so this becomes our default config file. 
- 
+We will move our custom config to the home directory, so this becomes our default config file. 
+------------------------------------------------------------------------------------------
+mv /root/my-kube-config /root/.kube/config
+
  So how do you update your current context?
  Can you configure a context to switch to a particular namespace? 
  The context section in the Kubeconfig file can take additional field called namespace, where you can specify a particular namespace. 
