@@ -1,1 +1,104 @@
-dbdj
+Authorization There are different authorization mechanisms supported by Kubernetes, such as -
+Node authorization
+Attribute-based authorization
+Role-based authorization 
+Webhook.
+
+1.Node Authorizer - Kube API Server is accessed by users like us for management purposes, as well as the Kubelets on worker nodes within the cluster for management purpose. The kubelet accesses the API server to read information about services, endpoints, nodes, and pods. The kubelet also reports to the Kube API Server with information about the node, such as its status. These requests are handled by a special authorizer known as the Node Authorizer.
+We discussed that the kubelets should be part of the system nodes group and have a name prefixed with system node. So any request coming from a user with the name system node and part of the system nodes group is authorized by the node authorizer 
+
+2. Attribute-based authorization :- In Attribute-based authorization we associate a user or a group of users with a set of permissions. You do this by creating a policy file with a set of policies defined in a Jason format this way you pass this file into the API server. Similarly, we create a policy definition file for each user or group of users. Now, every time you need to add or make a change in the security, you must edit this policy file manually and restart the Kube API Server. its difficult to manage. 
+
+3. RBAC :- In role-based access controls, instead of directly associating a user or a group with a set of permissions, we define a role, in this case for developers.We create a role with the set of permissions required for developers then we associate all the developers to that role. whenever a change needs to be made to the user's access we simply modify the role and it reflects on all developers immediately.
+
+4. Webhook - Outsource all the authorization mechanisms, For instance, Open Policy Agent is a third-party tool that helps with admission control and authorization. Kubernetes make an API call to the Open Policy Agent with the information about the user and his access requirements, and have the Open Policy Agent decide if the user should be permitted or not. Based on that response, the user is granted access.
+
+5. Always Allow and Always Deny :- As the name states, Always Allow, allows all requests without performing any authorization checks. Always Deny, denies all requests.
+
+So, where do you configure these modes? Which of them are active by default? Can you have more than one at a time? How does authorization work if you do have multiple ones configured? The modes are set using the “Authorization Mode” Option on the Kube API Server. 
+
+/etc/kubernetes/manifests/kube-apiserver.yaml
+ - --authorization-mode=Node,RBAC
+
+The Node Authorizer handles only node requests, so it denies the request. Whenever a module denies a request it is forwarded to the next one in the chain. The role-based access control module performs its checks and grants the user permission. Authorization is complete and user is given access to the requested object. So, every time a module denies the request it goes to the next one in the chain and as soon as a module approves the request no more checks are done and the user is granted permission. 
+
+
+RBAC => Create a Role and then link the role to the user by creating the role binding 
+Role - A Role always sets permissions within a particular namespace; when you create a Role, you have to specify the namespace it belongs in & you can allow access to specific resources alone by adding a resource names field to the rule.
+
+------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader
+  namespace: default        # Scope: only applies to this namespace
+rules:
+- apiGroups: [""]           # "" indicates the core API group (e.g., Pods, Services)
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+  resource-name: readablepod
+-----------------
+
+🧠 Explanation
+Field	Description
+apiVersion	                Always rbac.authorization.k8s.io/v1 for RBAC objects
+kind          	            Type of resource — here it’s a Role
+metadata.name	              Name of the role
+metadata.namespace	        Namespace where the role applies
+rules	                      List of permissions granted
+apiGroups	                  API group of the resources ("" for core group)
+resources	                  Which resources the rule applies to (pods, secrets, configmaps, etc.)
+verbs	                      Allowed operations (get, list, create, update, delete, watch, etc.)
+
+# Create a role named "pod-reader" with ResourceName specified   => kubectl create role pod-reader --verb=get,list,watch --resource=pods --resource-name=readablepod 
+# Kubectl get role
+# Kubectl describe role pod-reader
+
+Role binding - link the role to the user/group/service account by creating the role binding 
+The subjects is where we specify the user details.
+The roleref section is where we provide the details of the role we created.
+
+To actually grant a user or service account the permissions in the Role, you need a RoleBinding:
+
+Vi read-pods-binding.yaml
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: read-pods-binding
+  namespace: default
+subjects:
+- kind: User
+  name: dev-user               # The user getting access
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: pod-reader             # Must match the Role name
+  apiGroup: rbac.authorization.k8s.io
+
+Kubectl apply -f read-pods-binding.yaml
+kubectl get rolebinding
+kubectl describe rolebinding <name of the role binding> 
+
+# Create a role binding by name admin-binding for user1, user2, and group1 using the admin role 
+      kubectl create rolebinding admin-binding --role=admin --user=user1 --user=user2 --group=group1 
+
+What if you being a user would like to see if you have access to a particular resource in the cluster? 
+=================================================================================================
+
+kubectl auth can-i create deploy –as dev-user --namespace test
+kubectl auth can-i create pod -as developer 
+
+ ***********************************************************************************************************************************************************
+If you want to define a role within a namespace, use a Role; if you want to define a role cluster-wide, use a ClusterRole.
+
+ClusterRole and Cluster role binding
+The resources are categorized as either namespaced or cluster scoped.
+For namespace resources like pods, replica sets, jobs, deployments, services, secrets, roles and role bindings are created in the namespace you specify when you created them. 
+If you don't specify a namespace, they are created in the default namespace. 
+To view them, or delete them, or update them, you always specify the right namespace. 
+
+The cluster-scoped resources are those where you don't specify a namespace when you create them, like nodes, persistent volumes, cluster role bindings, certificate signing request and namespace objects themselves.
+To see a full list of namespaced and non-namespaced resources
+
+Service Account There are two types of accounts in Kubernetes, a user account and a service account. The user account is used by humans, and service accounts are used by machines. A user account could be for an administrator accessing the cluster to perform administrative tasks,or a developer accessing the cluster to deploy applications, etc A service account could be an account used by an application to interact with the Kubernetes cluster. For example, a monitoring application like Prometheus uses a service account to pull the Kubernetes API for performance metrics. An automated built tool like Jenkins, uses service accounts to deploy applications on the Kubernetes cluster. When the service account is created, it also creates a token automatically. The service account token is what must be used by the external application while authenticating to the Kubernetes API. The token, however, is stored as a secret object. For example, in this simple example, using Curl, you could provide the bearer token as an authorization header while making a call to the Kubernetes API. Note - You can create a service account, assign the right permissions using role-based access control mechanisms, and export your service account tokens, and use it to configure your third-party application to authenticate to the Kubernetes API. For example, we can have our custom Kubernetes dashboard application, or the Prometheus application deployed on the Kubernetes cluster itself. In that case, this whole process of exporting the service account token, and configuring the third-party application to use it can be made simple by automatically mounting the service token secret as a volume inside the pod, hosting the third-party application. That way, the token to access the Kubernetes API is already placed inside the pod and can be easily read by the application. You don't have to provide it manually. For every namespace in Kubernetes, a service account named default is automatically created. Each namespace has its own default service account. Whenever a pod is created, the default service account and its token are automatically mounted to that pod as a volume mount. For example, we have a simple pod definition file that creates a pod and We haven't specified any secrets or volume mounts in the definition file. But, when the pod is created, if you look at the details of the pod by running the kubectl described pod command, you see that a volume is automatically created from the secret named default token, which is in fact the secret containing the token for this default service account. The secret token is mounted at location /var/run/secrets/kubernetes.io/serviceaccount inside the pod. The default service account is very much restricted. It only has permission to run basic Kubernetes API queries. If you'd like to use a different service account such as the one we just created, modify the pod definition file to include a service account field and specify the name of the new service account. Kubernetes automatically mounts the default service account if you haven't explicitly specified any. You may choose not to mount a service account automatically by setting the automountServiceAccountToken field to false in the pod spec section. Summery:- Every namespace has a default service account, and that service account has a secret object with a token associated with it. When a pod is created, it automatically associates the service account to the pod and mounts the token to a well-known location within the pod. Difficulty in this method Now let's take that token that we just saw, and if you decode this token using the below mentioned command, or you could just copy and paste this token in the JWT website at jwt.io, you'll see that it has no expiry date defined in the payload section. So this is a token that does not have an expiry date set which causes the security issue . So the JWT (JSON Web Token) is valid, as long as the service account exists. Moreover, each JWT requires a separate secret object per service account, which results in scalability issues. jq -R 'split(".") | select(length > 0) | .[0],.[1] | @base64d | fromjson' << token Explanation: jq: A powerful command-line JSON processor. -R: Tells jq to read input as raw strings instead of JSON. split("."): Splits the input string by the dot (.) character. This is often used to split a JWT (JSON Web Token), which has three parts separated by dots. select(length > 0): Filters out empty strings from the split result. .[0],.[1]: Selects the first and second parts of the split string (typically the header and payload of a JWT). @base64d: Decodes the selected parts from Base64. fromjson: Converts the decoded string into JSON format. Use Case: This command is typically used to decode and inspect the header and payload of a JWT (JSON Web Token). It doesn't decode the signature part (which is .[2]) because that part isn't JSON and isn't usually needed for inspection. So as part of the Kubernetes enhancement proposal the token request API was introduced that aimed to introduce a mechanism for provisioning Kubernetes service account tokens that are more secure and scalable via an API. So tokens generated by the token request API are audience bound. They're time bound, and object bound and hence are more secure. So in the past when a service account was created, it automatically created a secret with a token that has no expiry and is not bound to any audience. This was then automatically mount as a volume to any pod that uses that service account. So with version 1.24, A change was made where when you create a service account, it no longer automatically creates a secret or a token access secret. So you must run the command kubectl create token, followed by the name of the service account to generate a token for that service account if you needed one. And it will then print that token on screen. Now, if you copy that token, and then if you try to decode this token, this time, you'll see that it has an expiry date defined. So now post version 1.24, if you would still like to create secrets in the old way with non expiring token, then you could still do that by creating a secret object with the type set to kubernetes.io/service-account-token, and the name of the service account specified within annotations in the metadata section like this. So this is how the secret object will be associated with that particular service account. So when you do this, just make sure that you have the service account created first, and then create a secret object. Otherwise the secret object will not be created. So this will create a non expiring token in a secret object and associated with that service account. kubectl get sa kubectl describe sa default Image Security From Docker's perspective, to run a container using a private image, you first log into your private registry using the Docker login command. Input your credentials. Once successful, run the application using the image from the private registry. In our pod definition file, to use an image from our private registry, we replace the image name with the full path to the one in the private registry. But how do we implement the authentication, the login part? How does Kubernetes get the credentials to access the private registry? To use an image from our private registry, we replace the image name with the full path to the one in the private registry. But how do we implement the authentication, the login part? How does Kubernetes get the credentials to access the private registry? Within Kubernetes, we know that the images are pulled and run by the Docker run time on the worker nodes. How do you pass the credentials to the docker run times
