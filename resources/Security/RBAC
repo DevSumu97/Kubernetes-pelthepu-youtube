@@ -147,6 +147,156 @@ When you do that, the user will have access to these resources across all namesp
 
 Earlier, when we created a role to authorize a user to access pods, the user had access to the pods in a particular namespace alone.
 With cluster roles when you authorize a user to access the pods, the user gets access to all pods in all namespaces across the cluster.
-**************************************************************************************************************************************************************
 
-Service Account There are two types of accounts in Kubernetes, a user account and a service account. The user account is used by humans, and service accounts are used by machines. A user account could be for an administrator accessing the cluster to perform administrative tasks,or a developer accessing the cluster to deploy applications, etc A service account could be an account used by an application to interact with the Kubernetes cluster. For example, a monitoring application like Prometheus uses a service account to pull the Kubernetes API for performance metrics. An automated built tool like Jenkins, uses service accounts to deploy applications on the Kubernetes cluster. When the service account is created, it also creates a token automatically. The service account token is what must be used by the external application while authenticating to the Kubernetes API. The token, however, is stored as a secret object. For example, in this simple example, using Curl, you could provide the bearer token as an authorization header while making a call to the Kubernetes API. Note - You can create a service account, assign the right permissions using role-based access control mechanisms, and export your service account tokens, and use it to configure your third-party application to authenticate to the Kubernetes API. For example, we can have our custom Kubernetes dashboard application, or the Prometheus application deployed on the Kubernetes cluster itself. In that case, this whole process of exporting the service account token, and configuring the third-party application to use it can be made simple by automatically mounting the service token secret as a volume inside the pod, hosting the third-party application. That way, the token to access the Kubernetes API is already placed inside the pod and can be easily read by the application. You don't have to provide it manually. For every namespace in Kubernetes, a service account named default is automatically created. Each namespace has its own default service account. Whenever a pod is created, the default service account and its token are automatically mounted to that pod as a volume mount. For example, we have a simple pod definition file that creates a pod and We haven't specified any secrets or volume mounts in the definition file. But, when the pod is created, if you look at the details of the pod by running the kubectl described pod command, you see that a volume is automatically created from the secret named default token, which is in fact the secret containing the token for this default service account. The secret token is mounted at location /var/run/secrets/kubernetes.io/serviceaccount inside the pod. The default service account is very much restricted. It only has permission to run basic Kubernetes API queries. If you'd like to use a different service account such as the one we just created, modify the pod definition file to include a service account field and specify the name of the new service account. Kubernetes automatically mounts the default service account if you haven't explicitly specified any. You may choose not to mount a service account automatically by setting the automountServiceAccountToken field to false in the pod spec section. Summery:- Every namespace has a default service account, and that service account has a secret object with a token associated with it. When a pod is created, it automatically associates the service account to the pod and mounts the token to a well-known location within the pod. Difficulty in this method Now let's take that token that we just saw, and if you decode this token using the below mentioned command, or you could just copy and paste this token in the JWT website at jwt.io, you'll see that it has no expiry date defined in the payload section. So this is a token that does not have an expiry date set which causes the security issue . So the JWT (JSON Web Token) is valid, as long as the service account exists. Moreover, each JWT requires a separate secret object per service account, which results in scalability issues. jq -R 'split(".") | select(length > 0) | .[0],.[1] | @base64d | fromjson' << token Explanation: jq: A powerful command-line JSON processor. -R: Tells jq to read input as raw strings instead of JSON. split("."): Splits the input string by the dot (.) character. This is often used to split a JWT (JSON Web Token), which has three parts separated by dots. select(length > 0): Filters out empty strings from the split result. .[0],.[1]: Selects the first and second parts of the split string (typically the header and payload of a JWT). @base64d: Decodes the selected parts from Base64. fromjson: Converts the decoded string into JSON format. Use Case: This command is typically used to decode and inspect the header and payload of a JWT (JSON Web Token). It doesn't decode the signature part (which is .[2]) because that part isn't JSON and isn't usually needed for inspection. So as part of the Kubernetes enhancement proposal the token request API was introduced that aimed to introduce a mechanism for provisioning Kubernetes service account tokens that are more secure and scalable via an API. So tokens generated by the token request API are audience bound. They're time bound, and object bound and hence are more secure. So in the past when a service account was created, it automatically created a secret with a token that has no expiry and is not bound to any audience. This was then automatically mount as a volume to any pod that uses that service account. So with version 1.24, A change was made where when you create a service account, it no longer automatically creates a secret or a token access secret. So you must run the command kubectl create token, followed by the name of the service account to generate a token for that service account if you needed one. And it will then print that token on screen. Now, if you copy that token, and then if you try to decode this token, this time, you'll see that it has an expiry date defined. So now post version 1.24, if you would still like to create secrets in the old way with non expiring token, then you could still do that by creating a secret object with the type set to kubernetes.io/service-account-token, and the name of the service account specified within annotations in the metadata section like this. So this is how the secret object will be associated with that particular service account. So when you do this, just make sure that you have the service account created first, and then create a secret object. Otherwise the secret object will not be created. So this will create a non expiring token in a secret object and associated with that service account. kubectl get sa kubectl describe sa default Image Security From Docker's perspective, to run a container using a private image, you first log into your private registry using the Docker login command. Input your credentials. Once successful, run the application using the image from the private registry. In our pod definition file, to use an image from our private registry, we replace the image name with the full path to the one in the private registry. But how do we implement the authentication, the login part? How does Kubernetes get the credentials to access the private registry? To use an image from our private registry, we replace the image name with the full path to the one in the private registry. But how do we implement the authentication, the login part? How does Kubernetes get the credentials to access the private registry? Within Kubernetes, we know that the images are pulled and run by the Docker run time on the worker nodes. How do you pass the credentials to the docker run times
+**************************************************************************************************************************************************************
+Service Account
+
+Service Account There are two types of accounts in Kubernetes, a user account and a service account.
+The user account is used by humans
+Service accounts are used by machines.
+
+User Account 
+A user account could be for an administrator accessing the cluster to perform administrative tasks,or a developer accessing the cluster to deploy applications, etc
+
+Service Account
+A service account could be an account used by an application to interact with the Kubernetes cluster. 
+For example,
+1. A monitoring application like Prometheus uses a service account to pull the Kubernetes API for performance metrics.
+2. An automated built tool like Jenkins, uses service accounts to deploy applications on the Kubernetes cluster.
+
+When the service account is created, it also creates a token automatically.
+The service account token is what must be used by the external application while authenticating to the Kubernetes API.The token, however, is stored as a secret object. For example, in this simple example, using Curl, you could provide the bearer token as an authorization header while making a call to the Kubernetes API.
+
+Well, think of it this way if the service account was an ID card that we create for a service, the barcode that's usually on the ID cards is the token.
+It's the barcodes that are scanned by the gates to prove the identity of that user.
+
+Example – Access Kubernetes API using a token:
+curl -k \
+  -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+  https://<API_SERVER>:6443/api/v1/namespaces/default/pods
+
+Example-1 (External Application outside the kubernetes Cluster)
+---------------------------------------------------------------
+I've built a simple Kubernetes dashboard application named my Kubernetes Dashboard. It's a simple application built in Python, and all that it does when deployed is retrieve the list of pods on a Kubernetes cluster by sending a request to the Kubernetes API and display it on a web page.
+
+=> In order for my application to query the Kubernetes API, it has to be authenticated. For that, we use a service account.
+A service account is an identity of a service. A service account is associated with what is known as a token.
+A token is what is used to authenticate a service account into the Kubernetes API.
+So the Dashboard service authenticated to an API using a curl command and the tokens that are passed through as a bearer token in the header of the call. 
+This token is what proves the identity of the service account to the API endpoint.
+
+Application inside the kubernetes Cluster
+==========================================
+For example, we can have our custom Kubernetes dashboard application, or the Prometheus application deployed on the Kubernetes cluster itself.
+In that case, this whole process of exporting the service account token, and configuring the third-party application to use it can be made simple by automatically mounting the service token secret as a volume inside the pod hosting the third-party application. That way, the token to access the Kubernetes API is already placed inside the pod and can be easily read by the application.You don't have to provide it manually.
+
+The pod automatically mounts the service account’s token inside
+/var/run/secrets/kubernetes.io/serviceaccount/token.
+
+Note - You can create a service account, assign the right permissions using role-based access control mechanisms, and export your service account tokens, and use it to configure your third-party application to authenticate to the Kubernetes API.
+
+A service account is an identity of a service/Application
+---------------------------------------------------------
+k create serviceaccount demo-sa
+
+Vi demo-sa.yaml
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: demo-sa
+  namespace: default
+
+k apply -f demo-sa.yaml
+---
+CREATING A ROLE 
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader
+  namespace: default
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+---
+ASSIGN A CREATED ROLE TO SERVICE ACCOUNT
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pod-reader-binding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: demo-sa
+  namespace: default
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+-----
+
+For every namespace in Kubernetes, a service account named "default" is automatically created. Each namespace has its own default service account. 
+Whenever a pod is created, the default service account and its token are automatically mounted to that pod as a volume mount.
+For example, we have a simple pod definition file that creates a pod and We haven't specified any secrets or volume mounts in the definition file.
+But, when the pod is created, if you look at the details of the pod by running the kubectl described pod command, you see that a volume is automatically created from the secret named default token, which is in fact the secret containing the token for this default service account.
+
+The secret token is mounted at location /var/run/secrets/kubernetes.io/serviceaccount inside the pod. 
+
+The default service account is very much restricted. It only has permission to run basic Kubernetes API queries. 
+# If you'd like to use a different service account such as the one we just created, modify the pod definition file to include a service account field and specify the name of the new service account.Kubernetes automatically mounts the default service account if you haven't explicitly specified any. 
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: demo-pod
+  namespace: default
+spec:
+  serviceAccountName: demo-sa   # 👈 Associates the ServiceAccount
+    containers:
+  - name: demo-container
+    image: curlimages/curl
+    command: ["sleep", "3600"]
+
+# Kubernetes automatically creates a short lived token and mounts it inside a projected volume. The Kubelet also automatically rotates this token, and this token is bound to the life of the pod, so it is automatically expired when the pod is deleted.Now, if you don't want a token to be automatically created and mounted inside the pod for the service account, you may add the auto mount Service account token key to false like this.
+ 
+ > You can define this either at the service account level. That way, no pods that use the service account gets the service account token auto mounted.
+
+🧩 Example — Disable automatic ServiceAccount token mounting at the service account level
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: demo-sa
+  namespace: default
+  automountServiceAccountToken: false   # 👈 disables mounting the token
+
+🧩 Example — Disable automatic ServiceAccount token mounting at the pod level
+apiVersion: v1
+kind: Pod
+metadata:
+  name: no-token-pod
+  namespace: default
+spec:
+  serviceAccountName: demo-sa
+  automountServiceAccountToken: false   # 👈 disables mounting the token
+  containers:
+  - name: demo-container
+    image: curlimages/curl
+    command: ["sleep", "3600"]
+
+This setup that we've discussed so far works fine. So the pod is associated to a service account, and as soon as the pod is associated to a service account,
+Kubernetes automatically creates a token with an expiry date and automatically mounts that within the pod at a particular location, which the application running inside the pod can refer to and read from to make API calls to Kubernetes.
+----------------------------------------------------------------------------------------------
+CREATING TOKEN FOR EXTERNAL APPLICATIONS
+
+At times, you might want to create a token that is to be used outside of the cluster, maybe to paste into the Kubernetes dashboard that we had created, or to put it into a CI CD tool or an external monitoring tool.
+
+In such cases, you can create a token by running the kubectl create token command. It creates a token and shares it on screen.And this token is not stored in any secret. By default, all tokens are valid for one hour to extend the validity Add a duration flag to the command.
+
+In Kubernetes, you can manually create a token for a ServiceAccount to authenticate to the API (for example, to use it with curl or external tools).
+🧩 1️⃣ Create a ServiceAccount =>  k create serviceaccount demo-sa
+🧩 2️⃣ Create a Token for the ServiceAccount =>  kubectl create token demo-sa --namespace default --duration=12h
+
+Summery:- Every namespace has a default service account, and that service account has a secret object with a token associated with it. When a pod is created, it automatically associates the service account to the pod and mounts the token to a well-known location within the pod. Difficulty in this method Now let's take that token that we just saw, and if you decode this token using the below mentioned command, or you could just copy and paste this token in the JWT website at jwt.io, you'll see that it has no expiry date defined in the payload section. So this is a token that does not have an expiry date set which causes the security issue . So the JWT (JSON Web Token) is valid, as long as the service account exists. Moreover, each JWT requires a separate secret object per service account, which results in scalability issues. jq -R 'split(".") | select(length > 0) | .[0],.[1] | @base64d | fromjson' << token Explanation: jq: A powerful command-line JSON processor. -R: Tells jq to read input as raw strings instead of JSON. split("."): Splits the input string by the dot (.) character. This is often used to split a JWT (JSON Web Token), which has three parts separated by dots. select(length > 0): Filters out empty strings from the split result. .[0],.[1]: Selects the first and second parts of the split string (typically the header and payload of a JWT). @base64d: Decodes the selected parts from Base64. fromjson: Converts the decoded string into JSON format. Use Case: This command is typically used to decode and inspect the header and payload of a JWT (JSON Web Token). It doesn't decode the signature part (which is .[2]) because that part isn't JSON and isn't usually needed for inspection. So as part of the Kubernetes enhancement proposal the token request API was introduced that aimed to introduce a mechanism for provisioning Kubernetes service account tokens that are more secure and scalable via an API. So tokens generated by the token request API are audience bound. They're time bound, and object bound and hence are more secure. So in the past when a service account was created, it automatically created a secret with a token that has no expiry and is not bound to any audience. This was then automatically mount as a volume to any pod that uses that service account. So with version 1.24, A change was made where when you create a service account, it no longer automatically creates a secret or a token access secret. So you must run the command kubectl create token, followed by the name of the service account to generate a token for that service account if you needed one. And it will then print that token on screen. Now, if you copy that token, and then if you try to decode this token, this time, you'll see that it has an expiry date defined. So now post version 1.24, if you would still like to create secrets in the old way with non expiring token, then you could still do that by creating a secret object with the type set to kubernetes.io/service-account-token, and the name of the service account specified within annotations in the metadata section like this. So this is how the secret object will be associated with that particular service account. So when you do this, just make sure that you have the service account created first, and then create a secret object. Otherwise the secret object will not be created. So this will create a non expiring token in a secret object and associated with that service account. kubectl get sa kubectl describe sa default Image Security From Docker's perspective, to run a container using a private image, you first log into your private registry using the Docker login command. Input your credentials. Once successful, run the application using the image from the private registry. In our pod definition file, to use an image from our private registry, we replace the image name with the full path to the one in the private registry. But how do we implement the authentication, the login part? How does Kubernetes get the credentials to access the private registry? To use an image from our private registry, we replace the image name with the full path to the one in the private registry. But how do we implement the authentication, the login part? How does Kubernetes get the credentials to access the private registry? Within Kubernetes, we know that the images are pulled and run by the Docker run time on the worker nodes. How do you pass the credentials to the docker run times
