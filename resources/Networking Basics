@@ -28,7 +28,7 @@ Host portion — identifies the device in that network. Host Bit is represented 
 | **D** | 224.0.0.0 – 239.255.255.255 | N/A                 | —                               | Multicasting    |              |               |
 | **E** | 240.0.0.0 – 255.255.255.255 | N/A                 | —                               | Experimental    |              |               |
 
-CIDR- Represents the Network Bits 
+CIDR- Represents the Network Bits (Slash notation showing network bits)
 In Class - A -> 1 network octet  -> 8 bits , Default CIDR of Class A /8 , If any thing more than 8 means subnetting is happened
 In Class - B -> 2 network octets -> 16 bits, Default CIDR of Class B /16 , If any thing more than 16 means subnetting is happened
 In Class - C -> 3 network octets -> 24 bits, Default CIDR of Class C /24 , If any thing more than 24 means subnetting is happened
@@ -56,6 +56,61 @@ In Classs C
 | 255.255.255.255 | /32  | 0         | 1               | 0 (single host address)                 |
 
  🧠 Quick Trick
-You can find usable IPs instantly from the CIDR:
-Usable = (2^(32 - CIDR)) - 2                                                                     
+You can find usable IPs/hosts instantly from the CIDR:
+Usable ip = (2^(32 - CIDR)) - 2     OR     Usable ip = (2^Host Bits) - 2  
+
+Subnetting 
+Subnetting means dividing a large network into smaller, more manageable sub-networks (subnets).
+Barrowing Host Bit to Network bit.
+
+🧩 The Goal
+We’re given how many hosts we need per subnet —
+and we must find:
+# The subnet mask (/CIDR)
+# The number of subnets
+# The usable IP range
+
+🧮 Example 1 — Class C Network (192.168.1.0/24) Requirement: 20 hosts per subnet
+
+Step 1 → Formula  2^h − 2 ≥ 20
+Try values:
+2⁴ − 2 = 14 ❌ (too few)
+2⁵ − 2 = 30 ✅ (enough)
+So h = 5
+
+Step 2 → New Prefix
+192.168.1.0 => In Class-C 3 network bit and 1 host bit N|N|N|H
+Convert Host Bit to Binary 
+192.168.1.00000000 <= COUNT 5 (h=5) from this direction & handover the rest of the bits to Network
+192.168.1.11100000 ( Network bit is represented by 1 and host bit is represented by 0)
+ Conver into decimal value  (128+64+32=224)
+192.168.1.224/27  
+
+New Prefix => 32−5=27 => IP4 is 32 bit in this 5 bits is host bit, So now we have 27 bits with network
+
+2⁷  2⁶ 2⁵ 2⁴ 2³ 2² 2¹ 2⁰    		✅ (anything to the power 0 = 1)
+128 64 32 16 8  4  2  1
+
+✅ New subnet mask = 255.255.255.224 (/27)    Note: Subnet Mask - Change the network bit to 255 and host bit to 0
+
+Step 3 → Number of Subnets
+==========================
+We borrowed 3 bits (from /24 → /27) 2^3=8 subnets
+
+Step 4 → Block Size
+==================
+256−224=32
+So each subnet has 32 addresses.
+
+Step 5 → Subnets and Ranges
+| Subnet | Network ID   | Broadcast     | Usable Range                 | Usable Hosts |
+| ------ | ------------ | ------------- | ---------------------------- | ------------ |
+| 1      | 192.168.1.0  | 192.168.1.31  | 192.168.1.1 – 192.168.1.30   | 30           |
+| 2      | 192.168.1.32 | 192.168.1.63  | 192.168.1.33 – 192.168.1.62  | 30           |
+| 3      | 192.168.1.64 | 192.168.1.95  | 192.168.1.65 – 192.168.1.94  | 30           |
+| 4      | 192.168.1.96 | 192.168.1.127 | 192.168.1.97 – 192.168.1.126 | 30           |
+| 5      | 192.168.1.128| 192.168.1.159 | 192.168.1.129- 192.168.1.158 | 30           |          
+| 6      | 192.168.1.160| 192.168.1.191 | 192.168.1.161-192.168.1.190  | 30           |
+| 7      | 192.168.1.192| 192.168.1.223 | 192.168.1.193-192.168.1.222  | 30           |
+| 8      | 192.168.1.224| 192.168.1.255 | 192.168.1.225-192.168.1.254  | 30           |
 
