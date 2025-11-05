@@ -28,10 +28,34 @@ Host portion — identifies the device in that network. Host Bit is represented 
 | **D** | 224.0.0.0 – 239.255.255.255 | N/A                 | —                               | Multicasting    |              |               |
 | **E** | 240.0.0.0 – 255.255.255.255 | N/A                 | —                               | Experimental    |              |               |
 
+CIDR- Represents the Network Bits 
+In Class - A -> 1 network octet  -> 8 bits , Default CIDR of Class A /8 , If any thing more than 8 means subnetting is happened
+In Class - B -> 2 network octets -> 16 bits, Default CIDR of Class B /16 , If any thing more than 16 means subnetting is happened
+In Class - C -> 3 network octets -> 24 bits, Default CIDR of Class C /24 , If any thing more than 24 means subnetting is happened
+
 Subnet Mask - Change the network bit to 255 and host bit to 0
 Network ID- In the IP keep the Network bit as it is and change the host bit to 0
+Broadcast ID - In the IP keep the Network bit as it is and change the host bit to 255
 
+NO of usable IP address, Usable IPs=2^(number of host bits) −2
+In -2 one is Network ID & the other is Broadcast ID 
 The first address of a subnet = Network ID
 The last address of a subnet = Broadcast Address
-                                                                      
+
+In Classs C 
+| Subnet Mask     | CIDR | Host Bits | Total IPs (2^n) | Usable IPs (2^n − 2)                    |
+| --------------- | ---- | --------- | --------------- | --------------------------------------- |
+| 255.255.255.0   | /24  | 8         | 256             | 254                                     |
+| 255.255.255.128 | /25  | 7         | 128             | 126                                     |
+| 255.255.255.192 | /26  | 6         | 64              | 62                                      |
+| 255.255.255.224 | /27  | 5         | 32              | 30                                      |
+| 255.255.255.240 | /28  | 4         | 16              | 14                                      |
+| 255.255.255.248 | /29  | 3         | 8               | 6                                       |
+| 255.255.255.252 | /30  | 2         | 4               | 2                                       |
+| 255.255.255.254 | /31  | 1         | 2               | 0* (special use – point-to-point links) |
+| 255.255.255.255 | /32  | 0         | 1               | 0 (single host address)                 |
+
+ 🧠 Quick Trick
+You can find usable IPs instantly from the CIDR:
+Usable = (2^(32 - CIDR)) - 2                                                                     
 
