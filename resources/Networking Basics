@@ -1,1 +1,37 @@
-dsd
+🌐 What Is an IP Address?
+An IP (Internet Protocol) address is a unique numerical identifier assigned to every device connected to a network.
+
+📦 IPv4 Structure
+An IPv4 address is 32 bits, divided into 4 octets (8 bits each)
+→ Each number (0–255) is 8 bits.
+Exponent (n)	Expression	Result
+2⁰	1	✅ (anything to the power 0 = 1)
+2¹	2	
+2²	4	
+2³	8	
+2⁴	16	
+2⁵	32	
+2⁶	64	
+2⁷	128
+
+It has two parts:
+Network portion — identifies the network. Network Bit is represented by 1
+Host portion — identifies the device in that network. Host Bit is represented by 0
+|
+🏘️ IPv4 Classes
+==============
+| Class | Range                       | Default Subnet Mask | Private IP                      | Use             | Network/Host | Default CIDR  |
+| ----- | --------------------------- | ------------------- | --------------------------------|-----------------|--------------|---------------|
+| **A** | 1.0.0.0 – 126.255.255.255   | 255.0.0.0           | 10.0.0.0 – 10.255.255.255       | Large networks  | N|H|H|H      | /8            |
+| **B** | 128.0.0.0 – 191.255.255.255 | 255.255.0.0         | 172.16.0.0 – 172.31.255.255     | Medium networks | N|N|H|H      | /16           |
+| **C** | 192.0.0.0 – 223.255.255.255 | 255.255.255.0       | 192.168.0.0 – 192.168.255.255   | Small networks  | N|N|N|H      | /24           |      
+| **D** | 224.0.0.0 – 239.255.255.255 | N/A                 | —                               | Multicasting    |              |               |
+| **E** | 240.0.0.0 – 255.255.255.255 | N/A                 | —                               | Experimental    |              |               |
+
+Subnet Mask - Change the network bit to 255 and host bit to 0
+Network ID- In the IP keep the Network bit as it is and change the host bit to 0
+
+The first address of a subnet = Network ID
+The last address of a subnet = Broadcast Address
+                                                                      
+
