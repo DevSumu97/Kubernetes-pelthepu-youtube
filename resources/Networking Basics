@@ -89,7 +89,7 @@ Convert Host Bit to Binary
 New Prefix => 32−5=27 => IP4 is 32 bit in this 5 bits is host bit, So now we have 27 bits with network
 
 2⁷  2⁶ 2⁵ 2⁴ 2³ 2² 2¹ 2⁰    		✅ (anything to the power 0 = 1)
-128 64 32 16 8  4  2  1
+128 64 32 16 8  4  2  1   => Sum=256
 
 ✅ New subnet mask = 255.255.255.224 (/27)    Note: Subnet Mask - Change the network bit to 255 and host bit to 0
 
